@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import Orchard
 
@@ -11,7 +12,62 @@ final class SpeechControllerTests: XCTestCase {
         controller.read(text)
 
         XCTAssertEqual(engine.spokenTexts, [text])
+        XCTAssertEqual(engine.configurations, [.default])
         XCTAssertEqual(controller.playbackState, .speaking)
+    }
+
+    func testReadPassesSpeechConfiguration() {
+        let engine = FakeSpeechEngine()
+        let controller = SpeechController(engine: engine)
+        let configuration = SpeechConfiguration(
+            voiceIdentifier: "com.apple.voice.compact.en-US.Samantha",
+            rate: 0.4,
+            pitch: 1.2,
+            volume: 0.75
+        )
+
+        controller.read("Hello", configuration: configuration)
+
+        XCTAssertEqual(engine.configurations, [configuration])
+    }
+
+    func testConfigurationClampsValuesToSafeSpeechRanges() {
+        let configuration = SpeechConfiguration(
+            voiceIdentifier: "   ",
+            rate: .greatestFiniteMagnitude,
+            pitch: -1,
+            volume: 2
+        )
+
+        XCTAssertNil(configuration.voiceIdentifier)
+        XCTAssertEqual(configuration.rate, SpeechConfiguration.maximumRate)
+        XCTAssertEqual(configuration.pitch, SpeechConfiguration.minimumPitch)
+        XCTAssertEqual(configuration.volume, SpeechConfiguration.maximumVolume)
+    }
+
+    func testConfigurationUsesDefaultsForNonFiniteValues() {
+        let configuration = SpeechConfiguration(
+            rate: .nan,
+            pitch: .infinity,
+            volume: -.infinity
+        )
+
+        XCTAssertEqual(configuration.rate, SpeechConfiguration.defaultRate)
+        XCTAssertEqual(configuration.pitch, SpeechConfiguration.defaultPitch)
+        XCTAssertEqual(configuration.volume, SpeechConfiguration.defaultVolume)
+    }
+
+    func testInstalledVoiceCatalogExposesReadableMetadata() throws {
+        let voices = SpeechVoiceCatalog.installedVoices(
+            locale: Locale(identifier: "en_US")
+        )
+        let voice = try XCTUnwrap(voices.first)
+
+        XCTAssertEqual(voice.id, voice.identifier)
+        XCTAssertFalse(voice.name.isEmpty)
+        XCTAssertFalse(voice.languageCode.isEmpty)
+        XCTAssertFalse(voice.languageName.isEmpty)
+        XCTAssertFalse(voice.qualityName.isEmpty)
     }
 
     func testWhitespaceOnlyTextDoesNotStart() {

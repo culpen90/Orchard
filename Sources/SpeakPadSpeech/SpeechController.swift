@@ -1,4 +1,4 @@
-// Adapted from SpeakPad at f6d97465a96e707ac3c3e168e0097195ec9ea65c.
+// Adapted from SpeakPad v0.2.0 at 4759c090eac120947fd785d32c60aeb41a6bbcde.
 // Copyright (c) 2026 culpen90. MIT licensed; see ThirdParty/SpeakPad/LICENSE.
 
 import Foundation
@@ -17,7 +17,10 @@ final class SpeechController {
         self.engine = engine ?? SystemSpeechEngine()
     }
 
-    func read(_ text: String) {
+    func read(
+        _ text: String,
+        configuration: SpeechConfiguration = .default
+    ) {
         guard text.contains(where: { !$0.isWhitespace }) else {
             return
         }
@@ -28,7 +31,10 @@ final class SpeechController {
         errorMessage = nil
         playbackState = .speaking
 
-        let didStart = engine.startSpeaking(text) { [weak self] event in
+        let didStart = engine.startSpeaking(
+            text,
+            configuration: configuration
+        ) { [weak self] event in
             self?.handle(event, generation: currentGeneration)
         }
 
@@ -80,6 +86,8 @@ final class SpeechController {
 
         switch event {
         case .started, .paused, .continued:
+            // Button actions update these states synchronously. Ignoring delayed
+            // delegate echoes prevents an older pause from overriding a newer resume.
             break
         case .finished, .cancelled:
             playbackState = .idle
