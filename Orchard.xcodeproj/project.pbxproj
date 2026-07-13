@@ -1,0 +1,629 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0346572CBEAFE719B9945B8E /* StubServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCD01895FDD517AADC8E2FE /* StubServices.swift */; };
+		072C64D00EC8FC6F9736135C /* MacActionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0070FE3979950B86342AE3CB /* MacActionServiceTests.swift */; };
+		10A6B22E10372C6CABF207C7 /* SpeechController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4A3C139789913AC299B332 /* SpeechController.swift */; };
+		1429FBFB34F3BFA04F9652B7 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554CE8B76F0E94AB8583E787 /* KeychainStore.swift */; };
+		17318BC427CCC83ED28D1575 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73617E3179DEB5612C4F78D8 /* SpeechRecognizer.swift */; };
+		1D1013D46F991B7F55D145CB /* OpenRouterClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B214FA76766CD9068DAB8868 /* OpenRouterClient.swift */; };
+		1D5B657ED2D379D22CDDAFAF /* AssistantStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEFC35E6E48A1F31DB75274D /* AssistantStoreTests.swift */; };
+		2E5C21B785DEF80A5B81DE13 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = E3B9989A21BE1DD8EB67391C /* ThirdPartyNotices.txt */; };
+		33722630C3BAD729F9A440B5 /* SpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C43DB5882EF2257D6F901E2B /* SpeechEngine.swift */; };
+		3392088FF978D084D9131148 /* OpenRouterClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BBD03FC0796A8922C4F79A0 /* OpenRouterClientTests.swift */; };
+		5415F3B13886FB4E027505D4 /* AssistantPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BEDC1C8D1F017DE103EBF4D /* AssistantPreferencesTests.swift */; };
+		5C582B2B179B26E485B450E2 /* SpeechControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B24DC3B407A83FAA326EE574 /* SpeechControllerTests.swift */; };
+		603597E307BE20D4C53D769C /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34317DBEF6667B8EFB2663D /* MenuBarView.swift */; };
+		67A1297ED5478C2A00A36DE4 /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF801ECFE5BD638F3F47B082 /* SSEParser.swift */; };
+		787CC6419DFBC0943667DB90 /* OrchardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C251378C6BCEE1287A9568 /* OrchardApp.swift */; };
+		7B2CDA081AF95CC66709C55F /* AssistantPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F26DC8E36897934CE6A0FE65 /* AssistantPreferences.swift */; };
+		817A004477287A1ABBCE2B9A /* FakeSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C87B1ED718B3E9D4517787 /* FakeSpeechEngine.swift */; };
+		91936DBDDE20AD0CE2AB1A23 /* AssistantModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39FA47EDF70A7CCBA811265C /* AssistantModels.swift */; };
+		B8A9DE51DD4AE603D9E3D6D5 /* AssistantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B6797B1FF7138E2215DF3E /* AssistantStore.swift */; };
+		BD3D6B0D9F3409C42C2A2593 /* SystemSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8E791BDE0AD885C6678542 /* SystemSpeechEngine.swift */; };
+		C0EEB2910E51905FA5F0A911 /* AssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1584EF452E627AB48B323BD6 /* AssistantView.swift */; };
+		C10D5902E40D65CC20291F64 /* SSEParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79785C05CCEB8B471D310914 /* SSEParserTests.swift */; };
+		C4A0F82ACA060788AB616850 /* OpenRouterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F13BFD3171AAEE80438EE9C8 /* OpenRouterModels.swift */; };
+		C6EE0EB1FD60A0E6ED8954A0 /* MacActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55047CAB06750001453F2492 /* MacActionService.swift */; };
+		D3BB0D35F7DC58F19BC93598 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16F720EEE9D17978ED36357B /* SettingsView.swift */; };
+		EC163680B400790AF658BA82 /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F586945E9162D7CF735490 /* GlobalHotKey.swift */; };
+		EF20D60BDC88ABCEA7019D75 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2ADADC74236B3B710D16E88 /* AppDelegate.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		DD29C9C237A73D6002185751 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 68AC9F6DC3A33252B5BFDD46 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2B7E2C1B4DBEACC4E41DDD40;
+			remoteInfo = Orchard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0070FE3979950B86342AE3CB /* MacActionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacActionServiceTests.swift; sourceTree = "<group>"; };
+		06C87B1ED718B3E9D4517787 /* FakeSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeSpeechEngine.swift; sourceTree = "<group>"; };
+		0BEDC1C8D1F017DE103EBF4D /* AssistantPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPreferencesTests.swift; sourceTree = "<group>"; };
+		1584EF452E627AB48B323BD6 /* AssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantView.swift; sourceTree = "<group>"; };
+		16F720EEE9D17978ED36357B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		39FA47EDF70A7CCBA811265C /* AssistantModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantModels.swift; sourceTree = "<group>"; };
+		55047CAB06750001453F2492 /* MacActionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacActionService.swift; sourceTree = "<group>"; };
+		554CE8B76F0E94AB8583E787 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		61B6797B1FF7138E2215DF3E /* AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantStore.swift; sourceTree = "<group>"; };
+		65C251378C6BCEE1287A9568 /* OrchardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchardApp.swift; sourceTree = "<group>"; };
+		73617E3179DEB5612C4F78D8 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
+		79785C05CCEB8B471D310914 /* SSEParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParserTests.swift; sourceTree = "<group>"; };
+		9B8E791BDE0AD885C6678542 /* SystemSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSpeechEngine.swift; sourceTree = "<group>"; };
+		9BBD03FC0796A8922C4F79A0 /* OpenRouterClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterClientTests.swift; sourceTree = "<group>"; };
+		B214FA76766CD9068DAB8868 /* OpenRouterClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterClient.swift; sourceTree = "<group>"; };
+		B24DC3B407A83FAA326EE574 /* SpeechControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechControllerTests.swift; sourceTree = "<group>"; };
+		B2ADADC74236B3B710D16E88 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B34317DBEF6667B8EFB2663D /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		B74F3BFA4C9F8BAB1B1373AA /* OrchardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OrchardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BDED28506F494BA8764489E8 /* Orchard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Orchard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C43DB5882EF2257D6F901E2B /* SpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechEngine.swift; sourceTree = "<group>"; };
+		D3F586945E9162D7CF735490 /* GlobalHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKey.swift; sourceTree = "<group>"; };
+		DDCD01895FDD517AADC8E2FE /* StubServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubServices.swift; sourceTree = "<group>"; };
+		DF801ECFE5BD638F3F47B082 /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
+		E3B9989A21BE1DD8EB67391C /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
+		EEFC35E6E48A1F31DB75274D /* AssistantStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantStoreTests.swift; sourceTree = "<group>"; };
+		F13BFD3171AAEE80438EE9C8 /* OpenRouterModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterModels.swift; sourceTree = "<group>"; };
+		F26DC8E36897934CE6A0FE65 /* AssistantPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPreferences.swift; sourceTree = "<group>"; };
+		FF4A3C139789913AC299B332 /* SpeechController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		00427D7D3733A51A14EEBF5D /* Speech */ = {
+			isa = PBXGroup;
+			children = (
+				B24DC3B407A83FAA326EE574 /* SpeechControllerTests.swift */,
+			);
+			path = Speech;
+			sourceTree = "<group>";
+		};
+		1DA1057040D2FE9BF8DA8AE9 /* Transcription */ = {
+			isa = PBXGroup;
+			children = (
+				73617E3179DEB5612C4F78D8 /* SpeechRecognizer.swift */,
+			);
+			path = Transcription;
+			sourceTree = "<group>";
+		};
+		36747EF97F505FD2EC814928 = {
+			isa = PBXGroup;
+			children = (
+				A44EE50E77C87E7F8E6DF172 /* Resources */,
+				EEAA52C947F285D71BC8374A /* Sources */,
+				841CA06DE5DE199F65999900 /* Tests */,
+				708939E69BF58367C122AE1E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3C684D47AEA195C6027B8C56 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				39FA47EDF70A7CCBA811265C /* AssistantModels.swift */,
+				F26DC8E36897934CE6A0FE65 /* AssistantPreferences.swift */,
+				61B6797B1FF7138E2215DF3E /* AssistantStore.swift */,
+			);
+			path = Assistant;
+			sourceTree = "<group>";
+		};
+		51CBC67ACB67C955AE089ABE /* OpenRouter */ = {
+			isa = PBXGroup;
+			children = (
+				B214FA76766CD9068DAB8868 /* OpenRouterClient.swift */,
+				F13BFD3171AAEE80438EE9C8 /* OpenRouterModels.swift */,
+				DF801ECFE5BD638F3F47B082 /* SSEParser.swift */,
+			);
+			path = OpenRouter;
+			sourceTree = "<group>";
+		};
+		56D4520076DC383A23719CC6 /* HotKey */ = {
+			isa = PBXGroup;
+			children = (
+				D3F586945E9162D7CF735490 /* GlobalHotKey.swift */,
+			);
+			path = HotKey;
+			sourceTree = "<group>";
+		};
+		5F8FCFAE2F5A22368578B67A /* SpeakPadSpeech */ = {
+			isa = PBXGroup;
+			children = (
+				FF4A3C139789913AC299B332 /* SpeechController.swift */,
+				C43DB5882EF2257D6F901E2B /* SpeechEngine.swift */,
+				9B8E791BDE0AD885C6678542 /* SystemSpeechEngine.swift */,
+			);
+			path = SpeakPadSpeech;
+			sourceTree = "<group>";
+		};
+		64E4AEB0AEAF752DFB4E9689 /* OpenRouter */ = {
+			isa = PBXGroup;
+			children = (
+				9BBD03FC0796A8922C4F79A0 /* OpenRouterClientTests.swift */,
+				79785C05CCEB8B471D310914 /* SSEParserTests.swift */,
+			);
+			path = OpenRouter;
+			sourceTree = "<group>";
+		};
+		69D78CFF3B909BFC98CBD84A /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				0BEDC1C8D1F017DE103EBF4D /* AssistantPreferencesTests.swift */,
+				EEFC35E6E48A1F31DB75274D /* AssistantStoreTests.swift */,
+				0070FE3979950B86342AE3CB /* MacActionServiceTests.swift */,
+			);
+			path = Assistant;
+			sourceTree = "<group>";
+		};
+		708939E69BF58367C122AE1E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BDED28506F494BA8764489E8 /* Orchard.app */,
+				B74F3BFA4C9F8BAB1B1373AA /* OrchardTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		841CA06DE5DE199F65999900 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				69D78CFF3B909BFC98CBD84A /* Assistant */,
+				64E4AEB0AEAF752DFB4E9689 /* OpenRouter */,
+				00427D7D3733A51A14EEBF5D /* Speech */,
+				D5F92922675AA5DCE92CD9EF /* TestDoubles */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		8B15756434D6635B0D09A806 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				1584EF452E627AB48B323BD6 /* AssistantView.swift */,
+				B34317DBEF6667B8EFB2663D /* MenuBarView.swift */,
+				16F720EEE9D17978ED36357B /* SettingsView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		A44EE50E77C87E7F8E6DF172 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E3B9989A21BE1DD8EB67391C /* ThirdPartyNotices.txt */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		D5F92922675AA5DCE92CD9EF /* TestDoubles */ = {
+			isa = PBXGroup;
+			children = (
+				06C87B1ED718B3E9D4517787 /* FakeSpeechEngine.swift */,
+				DDCD01895FDD517AADC8E2FE /* StubServices.swift */,
+			);
+			path = TestDoubles;
+			sourceTree = "<group>";
+		};
+		DB424E5288151DE343596837 /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				554CE8B76F0E94AB8583E787 /* KeychainStore.swift */,
+			);
+			path = Security;
+			sourceTree = "<group>";
+		};
+		EEAA52C947F285D71BC8374A /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				F4304EE096B407E99CEF9DC2 /* Actions */,
+				F9C11E2E130071FA5C68D3DA /* App */,
+				3C684D47AEA195C6027B8C56 /* Assistant */,
+				56D4520076DC383A23719CC6 /* HotKey */,
+				51CBC67ACB67C955AE089ABE /* OpenRouter */,
+				DB424E5288151DE343596837 /* Security */,
+				5F8FCFAE2F5A22368578B67A /* SpeakPadSpeech */,
+				1DA1057040D2FE9BF8DA8AE9 /* Transcription */,
+				8B15756434D6635B0D09A806 /* UI */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		F4304EE096B407E99CEF9DC2 /* Actions */ = {
+			isa = PBXGroup;
+			children = (
+				55047CAB06750001453F2492 /* MacActionService.swift */,
+			);
+			path = Actions;
+			sourceTree = "<group>";
+		};
+		F9C11E2E130071FA5C68D3DA /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B2ADADC74236B3B710D16E88 /* AppDelegate.swift */,
+				65C251378C6BCEE1287A9568 /* OrchardApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2B7E2C1B4DBEACC4E41DDD40 /* Orchard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 88C45955271DE740EE0BCB6F /* Build configuration list for PBXNativeTarget "Orchard" */;
+			buildPhases = (
+				B10658D0089FA37ABB49975A /* Sources */,
+				F0EB6BDBBCCD33247E9480DA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Orchard;
+			packageProductDependencies = (
+			);
+			productName = Orchard;
+			productReference = BDED28506F494BA8764489E8 /* Orchard.app */;
+			productType = "com.apple.product-type.application";
+		};
+		55767068F1FB876AF1A88932 /* OrchardTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 13C438AF97AD2921E4FA8733 /* Build configuration list for PBXNativeTarget "OrchardTests" */;
+			buildPhases = (
+				65F67D3712CAD176D78694A1 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B592ABF995C2651B38C99CD3 /* PBXTargetDependency */,
+			);
+			name = OrchardTests;
+			packageProductDependencies = (
+			);
+			productName = OrchardTests;
+			productReference = B74F3BFA4C9F8BAB1B1373AA /* OrchardTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		68AC9F6DC3A33252B5BFDD46 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					2B7E2C1B4DBEACC4E41DDD40 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 751150A25C83ACCD8D06491C /* Build configuration list for PBXProject "Orchard" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 36747EF97F505FD2EC814928;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 708939E69BF58367C122AE1E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2B7E2C1B4DBEACC4E41DDD40 /* Orchard */,
+				55767068F1FB876AF1A88932 /* OrchardTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F0EB6BDBBCCD33247E9480DA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2E5C21B785DEF80A5B81DE13 /* ThirdPartyNotices.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		65F67D3712CAD176D78694A1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5415F3B13886FB4E027505D4 /* AssistantPreferencesTests.swift in Sources */,
+				1D5B657ED2D379D22CDDAFAF /* AssistantStoreTests.swift in Sources */,
+				817A004477287A1ABBCE2B9A /* FakeSpeechEngine.swift in Sources */,
+				072C64D00EC8FC6F9736135C /* MacActionServiceTests.swift in Sources */,
+				3392088FF978D084D9131148 /* OpenRouterClientTests.swift in Sources */,
+				C10D5902E40D65CC20291F64 /* SSEParserTests.swift in Sources */,
+				5C582B2B179B26E485B450E2 /* SpeechControllerTests.swift in Sources */,
+				0346572CBEAFE719B9945B8E /* StubServices.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10658D0089FA37ABB49975A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EF20D60BDC88ABCEA7019D75 /* AppDelegate.swift in Sources */,
+				91936DBDDE20AD0CE2AB1A23 /* AssistantModels.swift in Sources */,
+				7B2CDA081AF95CC66709C55F /* AssistantPreferences.swift in Sources */,
+				B8A9DE51DD4AE603D9E3D6D5 /* AssistantStore.swift in Sources */,
+				C0EEB2910E51905FA5F0A911 /* AssistantView.swift in Sources */,
+				EC163680B400790AF658BA82 /* GlobalHotKey.swift in Sources */,
+				1429FBFB34F3BFA04F9652B7 /* KeychainStore.swift in Sources */,
+				C6EE0EB1FD60A0E6ED8954A0 /* MacActionService.swift in Sources */,
+				603597E307BE20D4C53D769C /* MenuBarView.swift in Sources */,
+				1D1013D46F991B7F55D145CB /* OpenRouterClient.swift in Sources */,
+				C4A0F82ACA060788AB616850 /* OpenRouterModels.swift in Sources */,
+				787CC6419DFBC0943667DB90 /* OrchardApp.swift in Sources */,
+				67A1297ED5478C2A00A36DE4 /* SSEParser.swift in Sources */,
+				D3BB0D35F7DC58F19BC93598 /* SettingsView.swift in Sources */,
+				10A6B22E10372C6CABF207C7 /* SpeechController.swift in Sources */,
+				33722630C3BAD729F9A440B5 /* SpeechEngine.swift in Sources */,
+				17318BC427CCC83ED28D1575 /* SpeechRecognizer.swift in Sources */,
+				BD3D6B0D9F3409C42C2A2593 /* SystemSpeechEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B592ABF995C2651B38C99CD3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2B7E2C1B4DBEACC4E41DDD40 /* Orchard */;
+			targetProxy = DD29C9C237A73D6002185751 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		23B6D1E81F3721DD18136638 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		7A6305BD583CBD4F728B17AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.culpen90.OrchardTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Orchard.app/Contents/MacOS/Orchard";
+			};
+			name = Release;
+		};
+		87161BD45C311DF415E8A675 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Configuration/Orchard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Orchard;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 culpen90";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Orchard uses the microphone only while you are speaking to the assistant.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Orchard transcribes your voice so it can answer your request.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.culpen90.Orchard;
+				PRODUCT_NAME = Orchard;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		D7777A37597B332BA4DBA4F5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Configuration/Orchard.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Orchard;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 culpen90";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Orchard uses the microphone only while you are speaking to the assistant.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Orchard transcribes your voice so it can answer your request.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.culpen90.Orchard;
+				PRODUCT_NAME = Orchard;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		E50909F699DE9BFEB9DE6811 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.culpen90.OrchardTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Orchard.app/Contents/MacOS/Orchard";
+			};
+			name = Debug;
+		};
+		F8DDFC0F1DBC58C84F22322D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		13C438AF97AD2921E4FA8733 /* Build configuration list for PBXNativeTarget "OrchardTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E50909F699DE9BFEB9DE6811 /* Debug */,
+				7A6305BD583CBD4F728B17AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		751150A25C83ACCD8D06491C /* Build configuration list for PBXProject "Orchard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F8DDFC0F1DBC58C84F22322D /* Debug */,
+				23B6D1E81F3721DD18136638 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		88C45955271DE740EE0BCB6F /* Build configuration list for PBXNativeTarget "Orchard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D7777A37597B332BA4DBA4F5 /* Debug */,
+				87161BD45C311DF415E8A675 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 68AC9F6DC3A33252B5BFDD46 /* Project object */;
+}
