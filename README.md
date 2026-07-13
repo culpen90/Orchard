@@ -86,7 +86,7 @@ The OpenRouter client uses `URLSession` directly and handles SSE keepalives, usa
 
 ## SpeakPad attribution
 
-The files under `Sources/SpeakPadSpeech` are adapted from SpeakPad commit `f6d97465a96e707ac3c3e168e0097195ec9ea65c`. SpeakPad's MIT license is preserved in [`ThirdParty/SpeakPad/LICENSE`](ThirdParty/SpeakPad/LICENSE).
+The files under `Sources/SpeakPadSpeech` are adapted from SpeakPad v0.2.0 at commit `4759c090eac120947fd785d32c60aeb41a6bbcde`. SpeakPad's MIT license is preserved in [`ThirdParty/SpeakPad/LICENSE`](ThirdParty/SpeakPad/LICENSE).
 The built app also includes `Resources/ThirdPartyNotices.txt`, containing the SpeakPad MIT notice and Orchard's PolyForm license URL.
 
 ## License

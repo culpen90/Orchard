@@ -1,4 +1,4 @@
-// Adapted from SpeakPad at f6d97465a96e707ac3c3e168e0097195ec9ea65c.
+// Adapted from SpeakPad v0.2.0 at 4759c090eac120947fd785d32c60aeb41a6bbcde.
 // Copyright (c) 2026 culpen90. MIT licensed; see ThirdParty/SpeakPad/LICENSE.
 
 import AVFAudio
@@ -22,6 +22,7 @@ final class SystemSpeechEngine: NSObject, SpeechEngine, AVSpeechSynthesizerDeleg
     @discardableResult
     func startSpeaking(
         _ text: String,
+        configuration: SpeechConfiguration,
         eventHandler: @escaping SpeechEventHandler
     ) -> Bool {
         guard text.contains(where: { !$0.isWhitespace }) else {
@@ -33,7 +34,13 @@ final class SystemSpeechEngine: NSObject, SpeechEngine, AVSpeechSynthesizerDeleg
         }
 
         let utterance = AVSpeechUtterance(string: text)
-        utterance.prefersAssistiveTechnologySettings = true
+        utterance.prefersAssistiveTechnologySettings = configuration == .default
+        if let voiceIdentifier = configuration.voiceIdentifier {
+            utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier)
+        }
+        utterance.rate = configuration.rate
+        utterance.pitchMultiplier = configuration.pitch
+        utterance.volume = configuration.volume
         session = Session(
             utteranceID: ObjectIdentifier(utterance),
             eventHandler: eventHandler
