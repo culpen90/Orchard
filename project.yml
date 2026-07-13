@@ -1,0 +1,70 @@
+name: Orchard
+
+options:
+  bundleIdPrefix: com.culpen90
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "14.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ENABLE_HARDENED_RUNTIME: YES
+
+targets:
+  Orchard:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - path: Resources
+        buildPhase: resources
+    entitlements:
+      path: Configuration/Orchard.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.device.audio-input: true
+        com.apple.security.device.microphone: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.culpen90.Orchard
+        PRODUCT_NAME: Orchard
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Orchard
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 culpen90"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Orchard uses the microphone only while you are speaking to the assistant."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Orchard transcribes your voice so it can answer your request."
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_STYLE: Automatic
+
+  OrchardTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    dependencies:
+      - target: Orchard
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.culpen90.OrchardTests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Orchard:
+    build:
+      targets:
+        Orchard: all
+        OrchardTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - OrchardTests
+    archive:
+      config: Release

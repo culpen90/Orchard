@@ -1,0 +1,6 @@
+.DS_Store
+.build/
+xcuserdata/
+*.xcuserstate
+Orchard.xcodeproj/project.xcworkspace/xcuserdata/
+Orchard.xcodeproj/xcuserdata/
