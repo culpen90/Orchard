@@ -25,8 +25,11 @@
 		7B2CDA081AF95CC66709C55F /* AssistantPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F26DC8E36897934CE6A0FE65 /* AssistantPreferences.swift */; };
 		817A004477287A1ABBCE2B9A /* FakeSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C87B1ED718B3E9D4517787 /* FakeSpeechEngine.swift */; };
 		91936DBDDE20AD0CE2AB1A23 /* AssistantModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39FA47EDF70A7CCBA811265C /* AssistantModels.swift */; };
+		B2B600893DFF6D9716F6D2C6 /* BrowserBridgeModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 273E6574BB4E29D19FB739EA /* BrowserBridgeModelsTests.swift */; };
 		B8A9DE51DD4AE603D9E3D6D5 /* AssistantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B6797B1FF7138E2215DF3E /* AssistantStore.swift */; };
+		BA5DF722EF9B10D7EE0AB76E /* BrowserBridgeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC9191ED9EE06A15D86E6F4B /* BrowserBridgeModels.swift */; };
 		BD3D6B0D9F3409C42C2A2593 /* SystemSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8E791BDE0AD885C6678542 /* SystemSpeechEngine.swift */; };
+		BD67345F90DCE794E05E8CEC /* BrowserBridgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34BA1F62489AC2EAA4055A21 /* BrowserBridgeService.swift */; };
 		C0EEB2910E51905FA5F0A911 /* AssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1584EF452E627AB48B323BD6 /* AssistantView.swift */; };
 		C10D5902E40D65CC20291F64 /* SSEParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79785C05CCEB8B471D310914 /* SSEParserTests.swift */; };
 		C4A0F82ACA060788AB616850 /* OpenRouterModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F13BFD3171AAEE80438EE9C8 /* OpenRouterModels.swift */; };
@@ -34,6 +37,8 @@
 		D3BB0D35F7DC58F19BC93598 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16F720EEE9D17978ED36357B /* SettingsView.swift */; };
 		EC163680B400790AF658BA82 /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F586945E9162D7CF735490 /* GlobalHotKey.swift */; };
 		EF20D60BDC88ABCEA7019D75 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2ADADC74236B3B710D16E88 /* AppDelegate.swift */; };
+		FE881CF6BA7D276B048A697D /* BrowserBridgeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF365FC634C142FD321BCB8 /* BrowserBridgeServiceTests.swift */; };
+		FF82C579DCE209E86AAE5256 /* ChromeExtension in Resources */ = {isa = PBXBuildFile; fileRef = 3ECA0133CA25362A777A6C8A /* ChromeExtension */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,7 +57,10 @@
 		0BEDC1C8D1F017DE103EBF4D /* AssistantPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantPreferencesTests.swift; sourceTree = "<group>"; };
 		1584EF452E627AB48B323BD6 /* AssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantView.swift; sourceTree = "<group>"; };
 		16F720EEE9D17978ED36357B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		273E6574BB4E29D19FB739EA /* BrowserBridgeModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserBridgeModelsTests.swift; sourceTree = "<group>"; };
+		34BA1F62489AC2EAA4055A21 /* BrowserBridgeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserBridgeService.swift; sourceTree = "<group>"; };
 		39FA47EDF70A7CCBA811265C /* AssistantModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantModels.swift; sourceTree = "<group>"; };
+		3ECA0133CA25362A777A6C8A /* ChromeExtension */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ChromeExtension; sourceTree = SOURCE_ROOT; };
 		55047CAB06750001453F2492 /* MacActionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacActionService.swift; sourceTree = "<group>"; };
 		554CE8B76F0E94AB8583E787 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		61B6797B1FF7138E2215DF3E /* AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantStore.swift; sourceTree = "<group>"; };
@@ -61,11 +69,13 @@
 		79785C05CCEB8B471D310914 /* SSEParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParserTests.swift; sourceTree = "<group>"; };
 		9B8E791BDE0AD885C6678542 /* SystemSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSpeechEngine.swift; sourceTree = "<group>"; };
 		9BBD03FC0796A8922C4F79A0 /* OpenRouterClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterClientTests.swift; sourceTree = "<group>"; };
+		9DF365FC634C142FD321BCB8 /* BrowserBridgeServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserBridgeServiceTests.swift; sourceTree = "<group>"; };
 		B214FA76766CD9068DAB8868 /* OpenRouterClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterClient.swift; sourceTree = "<group>"; };
 		B24DC3B407A83FAA326EE574 /* SpeechControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechControllerTests.swift; sourceTree = "<group>"; };
 		B2ADADC74236B3B710D16E88 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B34317DBEF6667B8EFB2663D /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		B74F3BFA4C9F8BAB1B1373AA /* OrchardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OrchardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC9191ED9EE06A15D86E6F4B /* BrowserBridgeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserBridgeModels.swift; sourceTree = "<group>"; };
 		BDED28506F494BA8764489E8 /* Orchard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Orchard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C43DB5882EF2257D6F901E2B /* SpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechEngine.swift; sourceTree = "<group>"; };
 		D3F586945E9162D7CF735490 /* GlobalHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKey.swift; sourceTree = "<group>"; };
@@ -98,6 +108,7 @@
 		36747EF97F505FD2EC814928 = {
 			isa = PBXGroup;
 			children = (
+				3ECA0133CA25362A777A6C8A /* ChromeExtension */,
 				A44EE50E77C87E7F8E6DF172 /* Resources */,
 				EEAA52C947F285D71BC8374A /* Sources */,
 				841CA06DE5DE199F65999900 /* Tests */,
@@ -113,6 +124,15 @@
 				61B6797B1FF7138E2215DF3E /* AssistantStore.swift */,
 			);
 			path = Assistant;
+			sourceTree = "<group>";
+		};
+		476DACAFBBC0AFBBF63DC139 /* BrowserBridge */ = {
+			isa = PBXGroup;
+			children = (
+				273E6574BB4E29D19FB739EA /* BrowserBridgeModelsTests.swift */,
+				9DF365FC634C142FD321BCB8 /* BrowserBridgeServiceTests.swift */,
+			);
+			path = BrowserBridge;
 			sourceTree = "<group>";
 		};
 		51CBC67ACB67C955AE089ABE /* OpenRouter */ = {
@@ -171,10 +191,20 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		81E1BEDD00CA514BD70DADFB /* BrowserBridge */ = {
+			isa = PBXGroup;
+			children = (
+				BC9191ED9EE06A15D86E6F4B /* BrowserBridgeModels.swift */,
+				34BA1F62489AC2EAA4055A21 /* BrowserBridgeService.swift */,
+			);
+			path = BrowserBridge;
+			sourceTree = "<group>";
+		};
 		841CA06DE5DE199F65999900 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
 				69D78CFF3B909BFC98CBD84A /* Assistant */,
+				476DACAFBBC0AFBBF63DC139 /* BrowserBridge */,
 				64E4AEB0AEAF752DFB4E9689 /* OpenRouter */,
 				00427D7D3733A51A14EEBF5D /* Speech */,
 				D5F92922675AA5DCE92CD9EF /* TestDoubles */,
@@ -223,6 +253,7 @@
 				F4304EE096B407E99CEF9DC2 /* Actions */,
 				F9C11E2E130071FA5C68D3DA /* App */,
 				3C684D47AEA195C6027B8C56 /* Assistant */,
+				81E1BEDD00CA514BD70DADFB /* BrowserBridge */,
 				56D4520076DC383A23719CC6 /* HotKey */,
 				51CBC67ACB67C955AE089ABE /* OpenRouter */,
 				DB424E5288151DE343596837 /* Security */,
@@ -328,6 +359,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF82C579DCE209E86AAE5256 /* ChromeExtension in Resources */,
 				2E5C21B785DEF80A5B81DE13 /* ThirdPartyNotices.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -341,6 +373,8 @@
 			files = (
 				5415F3B13886FB4E027505D4 /* AssistantPreferencesTests.swift in Sources */,
 				1D5B657ED2D379D22CDDAFAF /* AssistantStoreTests.swift in Sources */,
+				B2B600893DFF6D9716F6D2C6 /* BrowserBridgeModelsTests.swift in Sources */,
+				FE881CF6BA7D276B048A697D /* BrowserBridgeServiceTests.swift in Sources */,
 				817A004477287A1ABBCE2B9A /* FakeSpeechEngine.swift in Sources */,
 				072C64D00EC8FC6F9736135C /* MacActionServiceTests.swift in Sources */,
 				3392088FF978D084D9131148 /* OpenRouterClientTests.swift in Sources */,
@@ -359,6 +393,8 @@
 				7B2CDA081AF95CC66709C55F /* AssistantPreferences.swift in Sources */,
 				B8A9DE51DD4AE603D9E3D6D5 /* AssistantStore.swift in Sources */,
 				C0EEB2910E51905FA5F0A911 /* AssistantView.swift in Sources */,
+				BA5DF722EF9B10D7EE0AB76E /* BrowserBridgeModels.swift in Sources */,
+				BD67345F90DCE794E05E8CEC /* BrowserBridgeService.swift in Sources */,
 				EC163680B400790AF658BA82 /* GlobalHotKey.swift in Sources */,
 				1429FBFB34F3BFA04F9652B7 /* KeychainStore.swift in Sources */,
 				C6EE0EB1FD60A0E6ED8954A0 /* MacActionService.swift in Sources */,

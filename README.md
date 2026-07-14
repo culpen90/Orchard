@@ -9,13 +9,14 @@ It is built as a real menu-bar and desktop app, not a browser wrapper.
 - Opens instantly from anywhere with **Option-Space**.
 - Transcribes microphone audio with Apple's Speech framework.
 - Streams multi-turn answers from a configurable OpenRouter chat model.
+- Can research current information through a paired Chrome extension and use the returned titles, snippets, URLs, and visible result-page text in its answer.
 - Reads completed answers aloud with SpeakPad's `AVSpeechSynthesizer` engine.
 - Stores the OpenRouter API key only in macOS Keychain.
 - Lives in both a full conversation window and the menu bar.
 - Can propose a small set of allowlisted Mac actions:
   - open an installed application;
   - open an HTTPS website;
-  - search the web;
+  - research the web in the user's visible Chrome browser;
   - copy text to the clipboard.
 - Shows a native confirmation card before actions by default.
 - Supports on-device-only recognition when the current language provides it.
@@ -30,6 +31,7 @@ Mac actions require an OpenRouter model that supports tool calling. If a selecte
 - Xcode 26 or another Xcode version with Swift 6 support
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
 - An [OpenRouter API key](https://openrouter.ai/settings/keys)
+- Google Chrome 116 or later for browser research
 
 ## Build and run
 
@@ -60,13 +62,30 @@ make test
 
 The default model is `~openai/gpt-latest`, OpenRouter's moving OpenAI flagship alias. Change the slug in Settings, or leave it empty to use the OpenRouter account default.
 
+## Connect the Chrome extension
+
+The extension is bundled inside every Orchard build and also lives in [`ChromeExtension`](ChromeExtension) for development.
+
+1. Run Orchard and open **Orchard > Settings > Browser**.
+2. Choose **Reveal Extension**.
+3. Open `chrome://extensions` in Chrome and enable **Developer mode**.
+4. Choose **Load unpacked** and select the revealed `ChromeExtension` folder.
+5. Open **Orchard Browser Search**, paste the pairing token shown in Orchard Settings, and choose **Connect**. Allow Chrome's local-network prompt if it appears; the extension connects only to Orchard at `127.0.0.1`.
+6. Ask Orchard a current-information question. When Orchard proposes browser research, approve it. Chrome opens a visible Google results tab, and Orchard uses the returned evidence in the model's next response round.
+
+The popup shows whether Chrome is connected. Search tabs remain open so the user can inspect exactly what was read. Consent, CAPTCHA, unexpected, and error pages are reported as failures instead of being passed to the model as results.
+
 ## Privacy
 
-- Typed prompts and recent conversation context go to OpenRouter and the chosen model provider.
+- Typed prompts, recent conversation context, and approved browser-search evidence go to OpenRouter and the chosen model provider.
 - The API key is stored as a generic password in macOS Keychain. It is not written to `UserDefaults`, source code, or logs.
 - Speech output is generated locally on the Mac.
 - Speech input uses Apple's Speech framework. Depending on the language and system support, macOS may send audio to Apple. Enable **Require on-device recognition** in Settings to prevent that fallback.
-- Orchard is sandboxed and requests only outbound networking and microphone access.
+- Orchard is sandboxed. Its browser bridge listens only on `127.0.0.1:38476`, mutually authenticates with a random pairing token kept in Orchard's sandboxed preferences, and accepts only the fixed browser-search protocol. Challenge-response proofs keep the token itself off the socket. The bridge does not expose a general browsing or code-execution API.
+- The Chrome extension requests access only to Google search/consent pages, local extension storage, script injection on those pages, and Orchard's loopback bridge. It does not request history, cookies, arbitrary-site access, or the broad `tabs` permission.
+- Browser text is length-limited, URL-validated, marked as untrusted, and wrapped with non-editable prompt-injection safety instructions before model synthesis.
+- The model receives no action tools while synthesizing an answer from browser evidence. Any later action in that conversation requires confirmation, even if general action confirmations are disabled.
+- Within Orchard's conversation context, raw browser evidence is included only in the request that synthesizes the answer; later turns keep the resulting assistant answer, not the hidden search-page transcript. Orchard can search again when a follow-up needs fresh source detail.
 
 ## Architecture
 
@@ -74,15 +93,25 @@ The default model is `~openai/gpt-latest`, OpenRouter's moving OpenAI flagship a
 Option-Space / menu bar / conversation window
                      |
                AssistantStore
-            /        |         \
- Apple Speech   OpenRouter SSE   SpeakPad TTS
+          /          |             \
+ Apple Speech   OpenRouter SSE     SpeakPad TTS
                      |
-             allowlisted actions
-                     |
-              user confirmation
+             allowlisted tools
+               /           \
+      Mac actions       search_web
+            |               |
+    user confirmation   loopback WebSocket
+                            |
+                   paired Chrome extension
+                            |
+                  visible Google results tab
+                            |
+                 bounded evidence returned
+                            |
+                  next OpenRouter round
 ```
 
-The OpenRouter client uses `URLSession` directly and handles SSE keepalives, usage-only chunks, tool-call argument fragments, mid-stream errors, cancellation, and `[DONE]`. No third-party networking or AI SDK is required.
+The OpenRouter client uses `URLSession` directly and handles SSE keepalives, usage-only chunks, tool-call argument fragments, mid-stream errors, cancellation, and `[DONE]`. The browser bridge uses Apple's Network framework and an authenticated WebSocket. No third-party networking, browser automation, or AI SDK is required.
 
 ## SpeakPad attribution
 

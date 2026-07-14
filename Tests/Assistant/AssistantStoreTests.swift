@@ -100,6 +100,189 @@ final class AssistantStoreTests: XCTestCase {
         XCTAssertEqual(store.messages.last?.deliveryState, .complete)
     }
 
+    func testBrowserEvidenceIsSentBackToModelForAnswerSynthesis() async throws {
+        let router = ScriptedOpenRouter(
+            scripts: [
+                StubStreamScript(
+                    events: [
+                        .toolCall(
+                            toolCallDelta(
+                                id: "search_1",
+                                functionName: "search_web",
+                                arguments: #"{"query":"current answer"}"#
+                            )
+                        ),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [.text("The current answer."), .finishReason(.stop), .completed]
+                )
+            ]
+        )
+        let evidence = #"{"query":"current answer","results":[{"title":"Source","url":"https://example.com/current","snippet":"Current evidence"}]}"#
+        let actionService = StubActionService(
+            toolResultMessage: evidence,
+            activity: "Researched the web in Chrome"
+        )
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.speakResponses)
+        defaults.set(false, forKey: PreferenceKeys.confirmActions)
+        let store = AssistantStore(
+            openRouter: router,
+            keychain: StubAPIKeyStore(key: "test-key"),
+            actionService: actionService,
+            speechController: SpeechController(engine: FakeSpeechEngine()),
+            defaults: defaults
+        )
+
+        store.submit("Look up the current answer")
+        await waitUntil { !store.isResponding }
+
+        XCTAssertEqual(router.configurations.count, 2)
+        let toolMessage = try XCTUnwrap(
+            router.configurations[1].messages.first(where: { $0.role == .tool })
+        )
+        XCTAssertEqual(toolMessage.content, evidence)
+        XCTAssertTrue(router.configurations[1].tools.isEmpty)
+        XCTAssertEqual(store.messages.last?.content, "The current answer.")
+        XCTAssertEqual(store.messages.last?.activities, ["Researched the web in Chrome"])
+    }
+
+    func testToolCallIsRejectedWhenActionsWereNotOffered() async {
+        let router = ScriptedOpenRouter(
+            scripts: [
+                StubStreamScript(
+                    events: [
+                        .toolCall(toolCallDelta(id: "unexpected_action")),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                )
+            ]
+        )
+        let actionService = StubActionService()
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.speakResponses)
+        defaults.set(false, forKey: PreferenceKeys.enableActions)
+        let store = AssistantStore(
+            openRouter: router,
+            keychain: StubAPIKeyStore(key: "test-key"),
+            actionService: actionService,
+            speechController: SpeechController(engine: FakeSpeechEngine()),
+            defaults: defaults
+        )
+
+        store.submit("Do not run an action")
+        await waitUntil { !store.isResponding }
+
+        XCTAssertEqual(actionService.executionCount, 0)
+        XCTAssertTrue(store.lastError?.contains("actions were unavailable") == true)
+    }
+
+    func testBrowserEvidenceCannotTriggerAnActionDuringSynthesis() async {
+        let router = ScriptedOpenRouter(
+            scripts: [
+                StubStreamScript(
+                    events: [
+                        .toolCall(
+                            toolCallDelta(
+                                id: "search_1",
+                                functionName: "search_web",
+                                arguments: #"{"query":"current answer"}"#
+                            )
+                        ),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [
+                        .toolCall(toolCallDelta(id: "injected_action")),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                )
+            ]
+        )
+        let actionService = StubActionService(toolResultMessage: "Untrusted browser evidence")
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.speakResponses)
+        defaults.set(false, forKey: PreferenceKeys.confirmActions)
+        let store = AssistantStore(
+            openRouter: router,
+            keychain: StubAPIKeyStore(key: "test-key"),
+            actionService: actionService,
+            speechController: SpeechController(engine: FakeSpeechEngine()),
+            defaults: defaults
+        )
+
+        store.submit("Research this")
+        await waitUntil { !store.isResponding }
+
+        XCTAssertEqual(actionService.executionCount, 1)
+        XCTAssertTrue(router.configurations[1].tools.isEmpty)
+        XCTAssertTrue(store.lastError?.contains("actions were unavailable") == true)
+    }
+
+    func testLaterActionsRequireConfirmationAfterBrowserResearch() async {
+        let router = ScriptedOpenRouter(
+            scripts: [
+                StubStreamScript(
+                    events: [
+                        .toolCall(
+                            toolCallDelta(
+                                id: "search_1",
+                                functionName: "search_web",
+                                arguments: #"{"query":"current answer"}"#
+                            )
+                        ),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [.text("First answer"), .finishReason(.stop), .completed]
+                ),
+                StubStreamScript(
+                    events: [
+                        .toolCall(toolCallDelta(id: "later_action")),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [.text("No action taken"), .finishReason(.stop), .completed]
+                )
+            ]
+        )
+        let actionService = StubActionService(toolResultMessage: "Browser evidence")
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.speakResponses)
+        defaults.set(false, forKey: PreferenceKeys.confirmActions)
+        let store = AssistantStore(
+            openRouter: router,
+            keychain: StubAPIKeyStore(key: "test-key"),
+            actionService: actionService,
+            speechController: SpeechController(engine: FakeSpeechEngine()),
+            defaults: defaults
+        )
+
+        store.submit("Research this")
+        await waitUntil { !store.isResponding }
+        XCTAssertEqual(actionService.executionCount, 1)
+
+        store.submit("Continue")
+        await waitUntil { store.pendingAction != nil }
+        XCTAssertEqual(actionService.executionCount, 1)
+
+        store.resolvePendingAction(approved: false)
+        await waitUntil { !store.isResponding }
+        XCTAssertEqual(actionService.executionCount, 1)
+        XCTAssertEqual(store.messages.last?.content, "No action taken")
+    }
+
     func testPartialFailureIsMarkedInterruptedAndExcludedFromHistory() async {
         let router = ScriptedOpenRouter(
             scripts: [
@@ -207,13 +390,17 @@ final class AssistantStoreTests: XCTestCase {
         return defaults
     }
 
-    private func toolCallDelta(id: String) -> OpenRouterToolCallDelta {
+    private func toolCallDelta(
+        id: String,
+        functionName: String = "copy_to_clipboard",
+        arguments: String = #"{"text":"Test text"}"#
+    ) -> OpenRouterToolCallDelta {
         OpenRouterToolCallDelta(
             index: 0,
             id: id,
             type: "function",
-            functionName: "copy_to_clipboard",
-            arguments: #"{"text":"Test text"}"#
+            functionName: functionName,
+            arguments: arguments
         )
     }
 
