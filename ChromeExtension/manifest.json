@@ -1,17 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "Orchard Browser Search",
-  "version": "1.0.0",
-  "description": "Lets Orchard search the web in a visible browser tab after local pairing.",
+  "name": "Orchard Browser Control",
+  "version": "2.0.0",
+  "description": "Lets Orchard inspect and control visible Chrome tabs after local pairing and explicit website-access approval.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
     "scripting"
   ],
   "host_permissions": [
-    "https://www.google.com/*",
-    "https://consent.google.com/*",
     "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "service-worker.js"
@@ -21,7 +23,7 @@
   },
   "incognito": "not_allowed",
   "action": {
-    "default_title": "Orchard Browser Search",
+    "default_title": "Orchard Browser Control",
     "default_popup": "popup.html"
   }
 }

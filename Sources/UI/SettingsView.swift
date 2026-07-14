@@ -101,7 +101,7 @@ struct SettingsView: View {
             }
 
             Section("Privacy") {
-                Text("Your typed prompts, conversation context, and browser-search evidence are sent to OpenRouter and the selected model provider. The API key stays in Keychain and is never stored in app preferences.")
+                Text("Your typed prompts, conversation context, and approved browser page snapshots and action results are sent to OpenRouter and the selected model provider. The API key stays in Keychain and is never stored in app preferences.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -188,7 +188,7 @@ struct SettingsView: View {
                 Text("Actions require a model that supports tool calling. Turn them off if your selected model does not.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("After browser research, Orchard always asks before later actions in that conversation, even when the setting above is off.")
+                Text("Browser tasks can require several sequential actions. Each one follows the confirmation setting above.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -196,12 +196,12 @@ struct SettingsView: View {
             Section("Allowed actions") {
                 Label("Open an installed application", systemImage: "app.dashed")
                 Label("Open an HTTPS website", systemImage: "safari")
-                Label("Research the web through connected Chrome", systemImage: "magnifyingglass")
+                Label("Inspect and control connected Chrome tabs", systemImage: "cursorarrow.click")
                 Label("Copy text to the clipboard", systemImage: "doc.on.doc")
             }
 
             Section("Safety") {
-                Text("Orchard does not expose shell commands, AppleScript, arbitrary files, messages, purchases, deletion, or Accessibility automation to the model. Unknown actions and unexpected arguments are rejected.")
+                Text("Orchard does not expose shell commands, AppleScript, arbitrary files, Accessibility automation, cookies, or arbitrary JavaScript to the model. Browser commands use a fixed allowlist, validate every argument, and follow the confirmation setting above.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -212,7 +212,7 @@ struct SettingsView: View {
     private var browserSettings: some View {
         let bridge = BrowserBridgeService.shared
         return Form {
-            Section("Orchard Browser Research") {
+            Section("Orchard Browser Control") {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     if let listenerError = bridge.listenerErrorDescription {
                         VStack(alignment: .leading, spacing: 4) {
@@ -243,7 +243,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Text("The extension opens a visible Google results tab, reads only that results page, and returns bounded titles, snippets, URLs, and visible text so Orchard can answer from current web evidence.")
+                Text("The extension lets Orchard list tabs, navigate, inspect visible page content and controls, click, type, submit forms, choose options, scroll, use history, activate tabs, and close tabs. Orchard binds each existing-tab action to its observed tab ID and exact URL, rejecting the action if that tab changes before execution. It requests a fresh bounded snapshot afterward; if Chrome blocks that follow-up inspection, Orchard reports the action separately and inspects again before using page controls.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -261,7 +261,7 @@ struct SettingsView: View {
                     .disabled(extensionURL == nil)
                 }
 
-                Text("2. Copy this pairing token into the extension popup, choose Connect, and allow Chrome's local-network prompt if it appears.")
+                Text("2. In the extension popup, choose Enable under Website control, paste this pairing token, and choose Connect. Allow Chrome's local-network prompt if it appears.")
                     .font(.callout)
 
                 HStack(spacing: 10) {
@@ -279,7 +279,7 @@ struct SettingsView: View {
             }
 
             Section("Privacy and safety") {
-                Text("Orchard listens only on this Mac's loopback interface and mutually authenticates with a random token kept in Orchard's sandboxed preferences; the token itself is never sent over the socket. Search-page text is treated as untrusted data and is sent onward only as part of the browser lookup you approve.")
+                Text("Website control is an explicit, revocable Chrome permission for HTTP and HTTPS pages. Orchard listens only on this Mac's loopback interface and mutually authenticates with a random token; the token itself is never sent over the socket. Page content is treated as untrusted data. Fixed bundled code cannot read cookies, reveal password or file-input values, run arbitrary JavaScript, or control Chrome's internal pages.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

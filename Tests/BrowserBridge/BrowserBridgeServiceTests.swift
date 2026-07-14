@@ -4,150 +4,100 @@ import XCTest
 @testable import Orchard
 
 final class BrowserBridgeServiceTests: XCTestCase {
-    func testAuthenticatedWebSocketRoundTripReturnsBrowserEvidence() async throws {
+    func testAuthenticatedProtocolV2RoundTripControlsBrowserAndSupportsCancellation() async throws {
         let token = "test-pairing-token-that-is-long-enough"
         let port: UInt16 = 48_476
         let service = BrowserBridgeService(accessToken: token, port: port)
         try await service.waitUntilListening()
 
-        let session = URLSession(configuration: .ephemeral)
-        let socket = session.webSocketTask(
-            with: URL(string: "ws://127.0.0.1:\(port)")!
-        )
-        socket.resume()
+        let (session, socket) = makeSocket(port: port)
         defer {
             socket.cancel(with: .normalClosure, reason: nil)
             session.invalidateAndCancel()
         }
+        try await authenticate(socket: socket, service: service, token: token)
+        XCTAssertEqual(service.connectionGeneration, 1)
 
-        let clientNonce = authenticationValue(Data(repeating: 0x41, count: 32))
-        try await sendJSON(
-            [
-                "version": 1,
-                "type": "hello",
-                "clientNonce": clientNonce
-            ],
-            over: socket
+        let command = BrowserCommand(
+            action: .inspect,
+            tabID: 42,
+            expectedURL: "https://example.com/form"
         )
-        let challenge = try await receiveJSON(from: socket)
-        let serverNonce = try XCTUnwrap(challenge["serverNonce"] as? String)
-        let serverProof = try XCTUnwrap(challenge["proof"] as? String)
-
-        XCTAssertEqual(challenge["type"] as? String, "hello.challenge")
-        XCTAssertEqual(
-            serverProof,
-            authenticationProof(
-                token: token,
-                role: "server",
-                clientNonce: clientNonce,
-                serverNonce: serverNonce
-            )
-        )
-        XCTAssertFalse(service.isExtensionConnected)
-
-        try await sendJSON(
-            [
-                "version": 1,
-                "type": "hello.authenticate",
-                "proof": authenticationProof(
-                    token: token,
-                    role: "client",
-                    clientNonce: clientNonce,
-                    serverNonce: serverNonce
-                )
-            ],
-            over: socket
-        )
-        try await sendJSON(
-            [
-                "version": 1,
-                "type": "ping"
-            ],
-            over: socket
-        )
-
-        let acknowledgement = try await receiveJSON(from: socket)
-        let pong = try await receiveJSON(from: socket)
-        XCTAssertEqual(acknowledgement["type"] as? String, "hello.ack")
-        XCTAssertEqual(acknowledgement["ok"] as? Bool, true)
-        XCTAssertEqual(pong["type"] as? String, "pong")
-        XCTAssertTrue(service.isExtensionConnected)
-
-        async let searchResult = service.search(query: "current orchard facts")
+        async let commandResult = service.perform(command)
         let request = try await receiveJSON(from: socket)
         let requestID = try XCTUnwrap(request["id"] as? String)
+        let commandPayload = try XCTUnwrap(request["command"] as? [String: Any])
 
-        XCTAssertEqual(request["type"] as? String, "search.request")
-        XCTAssertEqual(request["query"] as? String, "current orchard facts")
+        XCTAssertEqual(request["version"] as? Int, 2)
+        XCTAssertEqual(request["type"] as? String, "browser.command")
+        XCTAssertEqual(commandPayload["action"] as? String, "page.inspect")
+        XCTAssertEqual(commandPayload["tabId"] as? Int, 42)
+        XCTAssertEqual(commandPayload["expectedUrl"] as? String, "https://example.com/form")
 
         try await sendJSON(
             [
-                "version": 1,
-                "type": "search.response",
+                "version": 2,
+                "type": "browser.response",
                 "id": requestID,
                 "ok": true,
-                "result": [
-                    "pageTitle": "current orchard facts - Google Search",
-                    "pageURL": "https://www.google.com/search?q=current+orchard+facts",
-                    "visibleText": "Fresh browser evidence",
-                    "results": [
-                        [
-                            "title": "Orchard facts",
-                            "url": "https://example.com/facts",
-                            "snippet": "A current fact from the browser."
-                        ]
-                    ]
-                ]
+                "result": browserResult(action: "page.inspect", snapshotID: "page:1")
             ],
             over: socket
         )
 
-        let result = try await searchResult
-        XCTAssertEqual(result.results.first?.title, "Orchard facts")
-        XCTAssertEqual(result.results.first?.url, "https://example.com/facts")
-        XCTAssertEqual(result.visibleText, "Fresh browser evidence")
+        let result = try await commandResult
+        XCTAssertEqual(result.action, .inspect)
+        XCTAssertEqual(result.outcome, "Inspected the Chrome tab.")
+        XCTAssertEqual(result.page?.tabID, 42)
+        XCTAssertEqual(result.page?.snapshotID, "page:1")
+        XCTAssertEqual(result.page?.elements.first?.id, "e1")
 
-        let cancelledSearch = Task {
-            try await service.search(query: "cancel this browser lookup")
+        let cancelledCommand = Task {
+            try await service.perform(
+                BrowserCommand(action: .navigate, url: "https://example.com", newTab: true)
+            )
         }
         let cancellableRequest = try await receiveJSON(from: socket)
         let cancelledRequestID = try XCTUnwrap(cancellableRequest["id"] as? String)
-        cancelledSearch.cancel()
+        cancelledCommand.cancel()
 
         let cancellation = try await receiveJSON(from: socket)
-        XCTAssertEqual(cancellation["type"] as? String, "search.cancel")
+        XCTAssertEqual(cancellation["type"] as? String, "browser.cancel")
         XCTAssertEqual(cancellation["id"] as? String, cancelledRequestID)
         do {
-            _ = try await cancelledSearch.value
-            XCTFail("Expected the pending search to be cancelled")
+            _ = try await cancelledCommand.value
+            XCTFail("Expected the browser command to be cancelled")
         } catch {
-            XCTAssertEqual(error as? BrowserBridgeError, .cancelled)
+            XCTAssertEqual(error as? BrowserBridgeError, .outcomeUnknown)
         }
 
-        // A response already in flight after cancellation is safely ignored.
+        // A response already in flight after cancellation is ignored.
         try await sendJSON(
             [
-                "version": 1,
-                "type": "search.response",
+                "version": 2,
+                "type": "browser.response",
                 "id": cancelledRequestID,
                 "ok": true,
-                "result": [
-                    "pageTitle": "Late result",
-                    "pageURL": "https://www.google.com/search?q=late",
-                    "visibleText": "Late evidence",
-                    "results": []
-                ]
+                "result": browserResult(action: "page.navigate", snapshotID: "late:1")
             ],
             over: socket
         )
 
-        async let remoteFailure = service.search(query: "bounded remote error")
+        async let remoteFailure = service.perform(
+            BrowserCommand(
+                action: .scroll,
+                tabID: 42,
+                expectedURL: "https://example.com/form",
+                direction: "down",
+                amount: 700
+            )
+        )
         let failingRequest = try await receiveJSON(from: socket)
         let failingRequestID = try XCTUnwrap(failingRequest["id"] as? String)
         try await sendJSON(
             [
-                "version": 1,
-                "type": "search.response",
+                "version": 2,
+                "type": "browser.response",
                 "id": failingRequestID,
                 "ok": false,
                 "error": [
@@ -175,12 +125,7 @@ final class BrowserBridgeServiceTests: XCTestCase {
         let port: UInt16 = 48_478
         let service = BrowserBridgeService(accessToken: token, port: port)
         try await service.waitUntilListening()
-
-        let session = URLSession(configuration: .ephemeral)
-        let socket = session.webSocketTask(
-            with: URL(string: "ws://127.0.0.1:\(port)")!
-        )
-        socket.resume()
+        let (session, socket) = makeSocket(port: port)
         defer {
             socket.cancel(with: .normalClosure, reason: nil)
             session.invalidateAndCancel()
@@ -188,9 +133,10 @@ final class BrowserBridgeServiceTests: XCTestCase {
 
         try await sendJSON(
             [
-                "version": 1,
+                "version": 2,
                 "type": "hello",
-                "clientNonce": authenticationValue(Data(repeating: 0x42, count: 32))
+                "clientNonce": authenticationValue(Data(repeating: 0x42, count: 32)),
+                "capabilities": BrowserCommandAction.allCases.map(\.rawValue)
             ],
             over: socket
         )
@@ -199,7 +145,7 @@ final class BrowserBridgeServiceTests: XCTestCase {
 
         try await sendJSON(
             [
-                "version": 1,
+                "version": 2,
                 "type": "hello.authenticate",
                 "proof": String(repeating: "A", count: 43)
             ],
@@ -214,17 +160,93 @@ final class BrowserBridgeServiceTests: XCTestCase {
         XCTAssertFalse(service.isExtensionConnected)
     }
 
-    func testLegacyBearerHelloIsRejectedWithoutAValidNonce() async throws {
-        let token = "test-pairing-token-that-is-long-enough"
-        let port: UInt16 = 48_479
-        let service = BrowserBridgeService(accessToken: token, port: port)
+    func testAuthenticatedReplacementChangesGenerationAndRejectsOldIntent() async throws {
+        let token = "replacement-test-token-that-is-long-enough"
+        let service = BrowserBridgeService(accessToken: token, port: 48_480)
         try await service.waitUntilListening()
+        XCTAssertEqual(service.connectionGeneration, 0)
 
-        let session = URLSession(configuration: .ephemeral)
-        let socket = session.webSocketTask(
-            with: URL(string: "ws://127.0.0.1:\(port)")!
+        let (firstSession, firstSocket) = makeSocket(port: 48_480)
+        defer {
+            firstSocket.cancel(with: .normalClosure, reason: nil)
+            firstSession.invalidateAndCancel()
+        }
+        try await authenticate(socket: firstSocket, service: service, token: token)
+        let firstGeneration = service.connectionGeneration
+        let command = BrowserCommand(
+            action: .inspect,
+            tabID: 42,
+            expectedURL: "https://example.com/form"
         )
-        socket.resume()
+        let oldCommand = Task {
+            try await service.perform(
+                command,
+                expectedConnectionGeneration: firstGeneration
+            )
+        }
+        let oldRequest = try await receiveJSON(from: firstSocket)
+        XCTAssertEqual(oldRequest["type"] as? String, "browser.command")
+
+        let (secondSession, secondSocket) = makeSocket(port: 48_480)
+        defer {
+            secondSocket.cancel(with: .normalClosure, reason: nil)
+            secondSession.invalidateAndCancel()
+        }
+        let replacementStarted = ContinuousClock.now
+        try await authenticate(socket: secondSocket, service: service, token: token)
+
+        XCTAssertEqual(firstGeneration, 1)
+        XCTAssertEqual(service.connectionGeneration, 2)
+        do {
+            _ = try await oldCommand.value
+            XCTFail("Expected the in-flight old-generation command to fail")
+        } catch {
+            XCTAssertEqual(error as? BrowserBridgeError, .connectionChanged)
+        }
+        XCTAssertLessThan(
+            replacementStarted.duration(to: ContinuousClock.now),
+            .seconds(2),
+            "Replacing a connection should not leave its commands waiting for timeout"
+        )
+
+        do {
+            _ = try await service.perform(
+                command,
+                expectedConnectionGeneration: firstGeneration
+            )
+            XCTFail("Expected a stale, not-yet-sent intent to be rejected")
+        } catch {
+            XCTAssertEqual(error as? BrowserBridgeError, .staleConnection)
+        }
+
+        async let currentResult = service.perform(
+            command,
+            expectedConnectionGeneration: service.connectionGeneration
+        )
+        let currentRequest = try await receiveJSON(from: secondSocket)
+        let currentRequestID = try XCTUnwrap(currentRequest["id"] as? String)
+        try await sendJSON(
+            [
+                "version": 2,
+                "type": "browser.response",
+                "id": currentRequestID,
+                "ok": true,
+                "result": browserResult(action: "page.inspect", snapshotID: "replacement:1")
+            ],
+            over: secondSocket
+        )
+        let replacementResult = try await currentResult
+        XCTAssertEqual(replacementResult.page?.snapshotID, "replacement:1")
+    }
+
+    func testExtensionWithoutBrowserControlCapabilityIsRejected() async throws {
+        let port: UInt16 = 48_479
+        let service = BrowserBridgeService(
+            accessToken: "test-pairing-token-that-is-long-enough",
+            port: port
+        )
+        try await service.waitUntilListening()
+        let (session, socket) = makeSocket(port: port)
         defer {
             socket.cancel(with: .normalClosure, reason: nil)
             session.invalidateAndCancel()
@@ -232,9 +254,12 @@ final class BrowserBridgeServiceTests: XCTestCase {
 
         try await sendJSON(
             [
-                "version": 1,
+                "version": 2,
                 "type": "hello",
-                "token": token
+                "clientNonce": authenticationValue(Data(repeating: 0x43, count: 32)),
+                "capabilities": BrowserCommandAction.allCases
+                    .filter { $0 != .click }
+                    .map(\.rawValue)
             ],
             over: socket
         )
@@ -243,11 +268,11 @@ final class BrowserBridgeServiceTests: XCTestCase {
 
         XCTAssertEqual(rejection["type"] as? String, "hello.ack")
         XCTAssertEqual(rejection["ok"] as? Bool, false)
-        XCTAssertEqual(error["code"] as? String, "invalid_nonce")
+        XCTAssertEqual(error["code"] as? String, "incompatible_extension")
         XCTAssertFalse(service.isExtensionConnected)
     }
 
-    func testSearchFailsClearlyWithoutConnectedExtension() async throws {
+    func testCommandFailsClearlyWithoutConnectedExtension() async throws {
         let service = BrowserBridgeService(
             accessToken: "another-test-token-that-is-long-enough",
             port: 48_477
@@ -255,11 +280,111 @@ final class BrowserBridgeServiceTests: XCTestCase {
         try await service.waitUntilListening()
 
         do {
-            _ = try await service.search(query: "anything")
+            _ = try await service.perform(
+                BrowserCommand(
+                    action: .inspect,
+                    tabID: 42,
+                    expectedURL: "https://example.com/form"
+                )
+            )
             XCTFail("Expected an extension connection error")
         } catch {
             XCTAssertEqual(error as? BrowserBridgeError, .extensionNotConnected)
         }
+    }
+
+    private func authenticate(
+        socket: URLSessionWebSocketTask,
+        service: BrowserBridgeService,
+        token: String
+    ) async throws {
+        let clientNonce = authenticationValue(Data(repeating: 0x41, count: 32))
+        try await sendJSON(
+            [
+                "version": 2,
+                "type": "hello",
+                "clientNonce": clientNonce,
+                "capabilities": BrowserCommandAction.allCases.map(\.rawValue)
+            ],
+            over: socket
+        )
+        let challenge = try await receiveJSON(from: socket)
+        let serverNonce = try XCTUnwrap(challenge["serverNonce"] as? String)
+        let serverProof = try XCTUnwrap(challenge["proof"] as? String)
+        XCTAssertEqual(challenge["version"] as? Int, 2)
+        XCTAssertEqual(challenge["type"] as? String, "hello.challenge")
+        XCTAssertEqual(
+            serverProof,
+            authenticationProof(
+                token: token,
+                role: "server",
+                clientNonce: clientNonce,
+                serverNonce: serverNonce
+            )
+        )
+
+        try await sendJSON(
+            [
+                "version": 2,
+                "type": "hello.authenticate",
+                "proof": authenticationProof(
+                    token: token,
+                    role: "client",
+                    clientNonce: clientNonce,
+                    serverNonce: serverNonce
+                )
+            ],
+            over: socket
+        )
+        try await sendJSON(["version": 2, "type": "ping"], over: socket)
+
+        let acknowledgement = try await receiveJSON(from: socket)
+        let pong = try await receiveJSON(from: socket)
+        XCTAssertEqual(acknowledgement["type"] as? String, "hello.ack")
+        XCTAssertEqual(acknowledgement["ok"] as? Bool, true)
+        XCTAssertEqual(pong["type"] as? String, "pong")
+        XCTAssertTrue(service.isExtensionConnected)
+    }
+
+    private func browserResult(action: String, snapshotID: String) -> [String: Any] {
+        [
+            "action": action,
+            "outcome": action == "page.inspect"
+                ? "Inspected the Chrome tab."
+                : "Completed the browser action.",
+            "page": [
+                "tabId": 42,
+                "snapshotId": snapshotID,
+                "title": "Example",
+                "url": "https://example.com/page",
+                "loading": false,
+                "visibleText": "Visible page content",
+                "scrollX": 0,
+                "scrollY": 0,
+                "viewportWidth": 1280,
+                "viewportHeight": 720,
+                "elements": [
+                    [
+                        "id": "e1",
+                        "role": "button",
+                        "name": "Continue",
+                        "tag": "button",
+                        "disabled": false,
+                        "editable": false,
+                        "inViewport": true
+                    ]
+                ]
+            ]
+        ]
+    }
+
+    private func makeSocket(port: UInt16) -> (URLSession, URLSessionWebSocketTask) {
+        let session = URLSession(configuration: .ephemeral)
+        let socket = session.webSocketTask(
+            with: URL(string: "ws://127.0.0.1:\(port)")!
+        )
+        socket.resume()
+        return (session, socket)
     }
 
     private func sendJSON(
@@ -277,16 +402,11 @@ final class BrowserBridgeServiceTests: XCTestCase {
         let message = try await socket.receive()
         let data: Data
         switch message {
-        case .string(let text):
-            data = Data(text.utf8)
-        case .data(let receivedData):
-            data = receivedData
-        @unknown default:
-            throw BrowserBridgeError.invalidMessage
+        case .string(let text): data = Data(text.utf8)
+        case .data(let receivedData): data = receivedData
+        @unknown default: throw BrowserBridgeError.invalidMessage
         }
-        return try XCTUnwrap(
-            JSONSerialization.jsonObject(with: data) as? [String: Any]
-        )
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
     private func authenticationProof(
@@ -295,7 +415,7 @@ final class BrowserBridgeServiceTests: XCTestCase {
         clientNonce: String,
         serverNonce: String
     ) -> String {
-        let payload = "orchard-browser-bridge:v1:\(role):\(clientNonce):\(serverNonce)"
+        let payload = "orchard-browser-bridge:v2:\(role):\(clientNonce):\(serverNonce)"
         let code = HMAC<SHA256>.authenticationCode(
             for: Data(payload.utf8),
             using: SymmetricKey(data: Data(token.utf8))

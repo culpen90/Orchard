@@ -100,16 +100,16 @@ final class AssistantStoreTests: XCTestCase {
         XCTAssertEqual(store.messages.last?.deliveryState, .complete)
     }
 
-    func testBrowserEvidenceIsSentBackToModelForAnswerSynthesis() async throws {
+    func testBrowserControlKeepsToolsAvailableForIterativeActions() async throws {
         let router = ScriptedOpenRouter(
             scripts: [
                 StubStreamScript(
                     events: [
                         .toolCall(
                             toolCallDelta(
-                                id: "search_1",
-                                functionName: "search_web",
-                                arguments: #"{"query":"current answer"}"#
+                                id: "inspect_1",
+                                functionName: "browser_inspect",
+                                arguments: "{}"
                             )
                         ),
                         .finishReason(.toolCalls),
@@ -117,14 +117,27 @@ final class AssistantStoreTests: XCTestCase {
                     ]
                 ),
                 StubStreamScript(
-                    events: [.text("The current answer."), .finishReason(.stop), .completed]
+                    events: [
+                        .toolCall(
+                            toolCallDelta(
+                                id: "click_1",
+                                functionName: "browser_click",
+                                arguments: #"{"tab_id":42,"snapshot_id":"page:1","element_id":"e2"}"#
+                            )
+                        ),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [.text("The browser task is complete."), .finishReason(.stop), .completed]
                 )
             ]
         )
-        let evidence = #"{"query":"current answer","results":[{"title":"Source","url":"https://example.com/current","snippet":"Current evidence"}]}"#
+        let snapshot = #"{"action":"page.inspect","page":{"snapshotId":"page:1"}}"#
         let actionService = StubActionService(
-            toolResultMessage: evidence,
-            activity: "Researched the web in Chrome"
+            toolResultMessage: snapshot,
+            activity: "Controlled Chrome"
         )
         let defaults = isolatedDefaults()
         defaults.set(false, forKey: PreferenceKeys.speakResponses)
@@ -137,17 +150,60 @@ final class AssistantStoreTests: XCTestCase {
             defaults: defaults
         )
 
-        store.submit("Look up the current answer")
+        store.submit("Click Continue in the current Chrome tab")
         await waitUntil { !store.isResponding }
 
-        XCTAssertEqual(router.configurations.count, 2)
-        let toolMessage = try XCTUnwrap(
+        XCTAssertEqual(router.configurations.count, 3)
+        let firstToolMessage = try XCTUnwrap(
             router.configurations[1].messages.first(where: { $0.role == .tool })
         )
-        XCTAssertEqual(toolMessage.content, evidence)
-        XCTAssertTrue(router.configurations[1].tools.isEmpty)
-        XCTAssertEqual(store.messages.last?.content, "The current answer.")
-        XCTAssertEqual(store.messages.last?.activities, ["Researched the web in Chrome"])
+        XCTAssertEqual(firstToolMessage.content, snapshot)
+        XCTAssertFalse(router.configurations[1].tools.isEmpty)
+        XCTAssertFalse(router.configurations[2].tools.isEmpty)
+        XCTAssertEqual(actionService.executionCount, 2)
+        XCTAssertEqual(store.messages.last?.content, "The browser task is complete.")
+        XCTAssertEqual(store.messages.last?.activities, ["Controlled Chrome", "Controlled Chrome"])
+    }
+
+    func testUnknownBrowserOutcomeWarnsModelNotToRetryBlindly() async throws {
+        let router = ScriptedOpenRouter(
+            scripts: [
+                StubStreamScript(
+                    events: [
+                        .toolCall(toolCallDelta(id: "uncertain_action")),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [.text("I will inspect before retrying."), .finishReason(.stop), .completed]
+                )
+            ]
+        )
+        let actionService = StubActionService(executionError: BrowserBridgeError.outcomeUnknown)
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.speakResponses)
+        defaults.set(false, forKey: PreferenceKeys.confirmActions)
+        let store = AssistantStore(
+            openRouter: router,
+            keychain: StubAPIKeyStore(key: "test-key"),
+            actionService: actionService,
+            speechController: SpeechController(engine: FakeSpeechEngine()),
+            defaults: defaults
+        )
+
+        store.submit("Do the browser action")
+        await waitUntil { !store.isResponding }
+
+        let toolMessage = try XCTUnwrap(
+            router.configurations[1].messages.first(where: { $0.role == .tool })?.content
+        )
+        XCTAssertTrue(toolMessage.contains("outcome is unknown"))
+        XCTAssertTrue(toolMessage.contains("may have happened"))
+        XCTAssertTrue(toolMessage.contains("Do not retry it blindly"))
+        XCTAssertTrue(toolMessage.contains("List or inspect"))
+        XCTAssertFalse(toolMessage.contains("failed safely"))
+        XCTAssertEqual(store.messages.last?.content, "I will inspect before retrying.")
     }
 
     func testToolCallIsRejectedWhenActionsWereNotOffered() async {
@@ -181,16 +237,16 @@ final class AssistantStoreTests: XCTestCase {
         XCTAssertTrue(store.lastError?.contains("actions were unavailable") == true)
     }
 
-    func testBrowserEvidenceCannotTriggerAnActionDuringSynthesis() async {
+    func testBrowserControlCanRunWithoutConfirmationWhenPreferenceIsOffAcrossTurns() async {
         let router = ScriptedOpenRouter(
             scripts: [
                 StubStreamScript(
                     events: [
                         .toolCall(
                             toolCallDelta(
-                                id: "search_1",
-                                functionName: "search_web",
-                                arguments: #"{"query":"current answer"}"#
+                                id: "inspect_1",
+                                functionName: "browser_inspect",
+                                arguments: "{}"
                             )
                         ),
                         .finishReason(.toolCalls),
@@ -198,15 +254,27 @@ final class AssistantStoreTests: XCTestCase {
                     ]
                 ),
                 StubStreamScript(
+                    events: [.text("I inspected the tab."), .finishReason(.stop), .completed]
+                ),
+                StubStreamScript(
                     events: [
-                        .toolCall(toolCallDelta(id: "injected_action")),
+                        .toolCall(
+                            toolCallDelta(
+                                id: "click_2",
+                                functionName: "browser_click",
+                                arguments: #"{"tab_id":42,"snapshot_id":"page:2","element_id":"e4"}"#
+                            )
+                        ),
                         .finishReason(.toolCalls),
                         .completed
                     ]
+                ),
+                StubStreamScript(
+                    events: [.text("I clicked it."), .finishReason(.stop), .completed]
                 )
             ]
         )
-        let actionService = StubActionService(toolResultMessage: "Untrusted browser evidence")
+        let actionService = StubActionService(toolResultMessage: "Browser state")
         let defaults = isolatedDefaults()
         defaults.set(false, forKey: PreferenceKeys.speakResponses)
         defaults.set(false, forKey: PreferenceKeys.confirmActions)
@@ -218,49 +286,36 @@ final class AssistantStoreTests: XCTestCase {
             defaults: defaults
         )
 
-        store.submit("Research this")
+        store.submit("Inspect the tab")
         await waitUntil { !store.isResponding }
-
         XCTAssertEqual(actionService.executionCount, 1)
-        XCTAssertTrue(router.configurations[1].tools.isEmpty)
-        XCTAssertTrue(store.lastError?.contains("actions were unavailable") == true)
+
+        store.submit("Click the requested control")
+        await waitUntil { !store.isResponding }
+        XCTAssertNil(store.pendingAction)
+        XCTAssertEqual(actionService.executionCount, 2)
+        XCTAssertEqual(store.messages.last?.content, "I clicked it.")
     }
 
-    func testLaterActionsRequireConfirmationAfterBrowserResearch() async {
+    func testDefaultConfirmationPausesAndDeclinePreventsExecution() async {
         let router = ScriptedOpenRouter(
             scripts: [
                 StubStreamScript(
                     events: [
-                        .toolCall(
-                            toolCallDelta(
-                                id: "search_1",
-                                functionName: "search_web",
-                                arguments: #"{"query":"current answer"}"#
-                            )
-                        ),
+                        .toolCall(toolCallDelta(id: "declined_action")),
                         .finishReason(.toolCalls),
                         .completed
                     ]
                 ),
                 StubStreamScript(
-                    events: [.text("First answer"), .finishReason(.stop), .completed]
-                ),
-                StubStreamScript(
-                    events: [
-                        .toolCall(toolCallDelta(id: "later_action")),
-                        .finishReason(.toolCalls),
-                        .completed
-                    ]
-                ),
-                StubStreamScript(
-                    events: [.text("No action taken"), .finishReason(.stop), .completed]
+                    events: [.text("Nothing was changed."), .finishReason(.stop), .completed]
                 )
             ]
         )
-        let actionService = StubActionService(toolResultMessage: "Browser evidence")
+        let actionService = StubActionService()
         let defaults = isolatedDefaults()
         defaults.set(false, forKey: PreferenceKeys.speakResponses)
-        defaults.set(false, forKey: PreferenceKeys.confirmActions)
+        defaults.set(true, forKey: PreferenceKeys.confirmActions)
         let store = AssistantStore(
             openRouter: router,
             keychain: StubAPIKeyStore(key: "test-key"),
@@ -269,18 +324,98 @@ final class AssistantStoreTests: XCTestCase {
             defaults: defaults
         )
 
-        store.submit("Research this")
-        await waitUntil { !store.isResponding }
-        XCTAssertEqual(actionService.executionCount, 1)
-
-        store.submit("Continue")
+        store.submit("Copy this only if I approve")
         await waitUntil { store.pendingAction != nil }
-        XCTAssertEqual(actionService.executionCount, 1)
+        XCTAssertEqual(actionService.executionCount, 0)
 
         store.resolvePendingAction(approved: false)
         await waitUntil { !store.isResponding }
-        XCTAssertEqual(actionService.executionCount, 1)
-        XCTAssertEqual(store.messages.last?.content, "No action taken")
+
+        XCTAssertEqual(actionService.executionCount, 0)
+        XCTAssertNil(store.pendingAction)
+        XCTAssertEqual(store.messages.last?.content, "Nothing was changed.")
+    }
+
+    func testEachIterativeActionRequiresFreshApproval() async {
+        let router = ScriptedOpenRouter(
+            scripts: [
+                StubStreamScript(
+                    events: [
+                        .toolCall(toolCallDelta(id: "action_1")),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [
+                        .toolCall(toolCallDelta(id: "action_2")),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                ),
+                StubStreamScript(
+                    events: [.text("Both actions finished."), .finishReason(.stop), .completed]
+                )
+            ]
+        )
+        let actionService = StubActionService()
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.speakResponses)
+        defaults.set(true, forKey: PreferenceKeys.confirmActions)
+        let store = AssistantStore(
+            openRouter: router,
+            keychain: StubAPIKeyStore(key: "test-key"),
+            actionService: actionService,
+            speechController: SpeechController(engine: FakeSpeechEngine()),
+            defaults: defaults
+        )
+
+        store.submit("Run two sequential actions")
+        await waitUntil { store.pendingAction != nil }
+        store.resolvePendingAction(approved: true)
+
+        await waitUntil {
+            actionService.executionCount == 1 && store.pendingAction != nil
+        }
+        XCTAssertTrue(store.isResponding)
+        store.resolvePendingAction(approved: true)
+        await waitUntil { !store.isResponding }
+
+        XCTAssertEqual(actionService.executionCount, 2)
+        XCTAssertNil(store.pendingAction)
+        XCTAssertEqual(store.messages.last?.content, "Both actions finished.")
+    }
+
+    func testMultipleToolCallsInOneRoundRunNoActions() async {
+        let router = ScriptedOpenRouter(
+            scripts: [
+                StubStreamScript(
+                    events: [
+                        .toolCall(toolCallDelta(index: 0, id: "action_1")),
+                        .toolCall(toolCallDelta(index: 1, id: "action_2")),
+                        .finishReason(.toolCalls),
+                        .completed
+                    ]
+                )
+            ]
+        )
+        let actionService = StubActionService()
+        let defaults = isolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.speakResponses)
+        defaults.set(false, forKey: PreferenceKeys.confirmActions)
+        let store = AssistantStore(
+            openRouter: router,
+            keychain: StubAPIKeyStore(key: "test-key"),
+            actionService: actionService,
+            speechController: SpeechController(engine: FakeSpeechEngine()),
+            defaults: defaults
+        )
+
+        store.submit("Do not batch actions")
+        await waitUntil { !store.isResponding }
+
+        XCTAssertEqual(actionService.executionCount, 0)
+        XCTAssertTrue(store.lastError?.contains("multiple actions") == true)
     }
 
     func testPartialFailureIsMarkedInterruptedAndExcludedFromHistory() async {
@@ -332,8 +467,8 @@ final class AssistantStoreTests: XCTestCase {
         XCTAssertTrue(engine.spokenTexts.isEmpty)
     }
 
-    func testLastToolRoundIsNotExecutedWithoutSynthesisRound() async {
-        let scripts = (0..<4).map { index in
+    func testActionBudgetReservesFinalToolFreeSynthesisRound() async {
+        var scripts = (0..<12).map { index in
             StubStreamScript(
                 events: [
                     .toolCall(toolCallDelta(id: "call_\(index)")),
@@ -342,6 +477,11 @@ final class AssistantStoreTests: XCTestCase {
                 ]
             )
         }
+        scripts.append(
+            StubStreamScript(
+                events: [.text("Finished after the action budget."), .finishReason(.stop), .completed]
+            )
+        )
         let router = ScriptedOpenRouter(scripts: scripts)
         let actionService = StubActionService()
         let defaults = isolatedDefaults()
@@ -358,11 +498,13 @@ final class AssistantStoreTests: XCTestCase {
         store.submit("Keep copying")
         await waitUntil { !store.isResponding }
 
-        XCTAssertEqual(router.configurations.count, 4)
-        XCTAssertEqual(actionService.executionCount, 3)
-        XCTAssertEqual(store.messages.last?.activities.count, 3)
-        XCTAssertEqual(store.messages.last?.deliveryState, .interrupted)
-        XCTAssertTrue(store.lastError?.contains("too many action rounds") == true)
+        XCTAssertEqual(router.configurations.count, 13)
+        XCTAssertEqual(actionService.executionCount, 12)
+        XCTAssertEqual(store.messages.last?.activities.count, 12)
+        XCTAssertEqual(store.messages.last?.deliveryState, .complete)
+        XCTAssertEqual(store.messages.last?.content, "Finished after the action budget.")
+        XCTAssertFalse(router.configurations[11].tools.isEmpty)
+        XCTAssertTrue(router.configurations[12].tools.isEmpty)
     }
 
     private func makeStore(
@@ -391,12 +533,13 @@ final class AssistantStoreTests: XCTestCase {
     }
 
     private func toolCallDelta(
+        index: Int = 0,
         id: String,
         functionName: String = "copy_to_clipboard",
         arguments: String = #"{"text":"Test text"}"#
     ) -> OpenRouterToolCallDelta {
         OpenRouterToolCallDelta(
-            index: 0,
+            index: index,
             id: id,
             type: "function",
             functionName: functionName,

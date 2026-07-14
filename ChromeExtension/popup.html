@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Orchard Browser Search</title>
+    <title>Orchard Browser Control</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -11,7 +11,7 @@
       <header>
         <div class="brand-mark" aria-hidden="true">O</div>
         <div>
-          <h1>Orchard Search</h1>
+          <h1>Orchard Browser Control</h1>
           <p class="subtitle">Local browser pairing</p>
         </div>
       </header>
@@ -21,6 +21,23 @@
         <div>
           <div id="status-label" class="status-label">Checking status…</div>
           <div id="status-detail" class="status-detail">127.0.0.1 only</div>
+        </div>
+      </section>
+
+      <section class="access-card">
+        <div class="access-heading">
+          <div>
+            <div class="access-label">Website control</div>
+            <div id="access-status" class="status-detail">Checking permission…</div>
+          </div>
+        </div>
+        <p class="access-explanation">
+          Orchard needs your one-time approval to read and interact with HTTP and HTTPS pages. Chrome
+          internal pages, other extensions, password fields, and file inputs remain unavailable.
+        </p>
+        <div class="connection-actions">
+          <button id="enable-access" class="primary" type="button">Enable</button>
+          <button id="disable-access" class="secondary" type="button">Revoke</button>
         </div>
       </section>
 
@@ -49,17 +66,19 @@
       <p id="feedback" class="feedback" role="status"></p>
 
       <section class="privacy">
-        <h2>What is shared</h2>
+        <h2>How control works</h2>
         <p>
-          Orchard can request a Google search only while paired. Each search opens in a visible tab.
-          The extension returns up to 8 result titles, links, snippets, and a bounded copy of visible
-          page text to Orchard over this Mac’s loopback connection. Orchard then sends that evidence
-          to the OpenRouter model provider you selected so the model can answer your request.
+          While paired, Orchard can list tabs, navigate, inspect visible page text and controls, click,
+          type or submit text, choose options, scroll, use page history, activate tabs, and close tabs.
+          Page snapshots and action results return to Orchard over this Mac’s loopback connection and
+          are sent to the OpenRouter model provider you selected so it can decide the next step.
         </p>
         <p>
           The token stays in Chrome storage; challenge-response pairing proves both sides without
-          sending the token over the socket. Search tabs remain open for you to inspect. Captcha,
-          consent, and error pages are never returned as search results.
+          sending the token over the socket. Orchard uses only fixed bundled control code: it cannot
+          send arbitrary JavaScript, read cookies, reveal password or file-input values, or control
+          Chrome’s internal pages. Existing-tab actions are bound to the exact observed URL and fail
+          if that tab changes before execution. Website text is untrusted and never authorizes another action.
         </p>
         <p>
           On first connect, Chrome may ask to access devices on your local network. This extension

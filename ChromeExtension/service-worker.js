@@ -1,29 +1,70 @@
 "use strict";
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const LOOPBACK_URL = "ws://127.0.0.1:38476";
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const LOAD_TIMEOUT_MS = 30_000;
-const MAX_RESULTS = 8;
-const MAX_QUERY_LENGTH = 1_000;
 const MAX_REQUEST_ID_LENGTH = 256;
-const MAX_INCOMING_MESSAGE_LENGTH = 16_384;
-const MAX_ACTIVE_SEARCHES = 2;
+const MAX_INCOMING_MESSAGE_LENGTH = 65_536;
+const MAX_PENDING_COMMANDS = 20;
 const MAX_QUEUED_RESPONSES = 20;
 const MAX_CANCELLED_REQUEST_IDS = 100;
+// Keep tab data well below Orchard's 128 KiB WebSocket message ceiling so the
+// response envelope, request ID, outcome, and future bounded metadata have room.
+const MAX_TAB_LIST_BYTES = 90_000;
 const AUTHENTICATION_VALUE_LENGTH = 43;
 const AUTHENTICATION_NONCE_BYTES = 32;
-const AUTHENTICATION_CONTEXT = "orchard-browser-bridge:v1";
+const AUTHENTICATION_CONTEXT = "orchard-browser-bridge:v2";
+const WEBSITE_ORIGINS = Object.freeze(["http://*/*", "https://*/*"]);
+const CAPABILITIES = Object.freeze([
+  "page.inspect",
+  "page.navigate",
+  "page.click",
+  "page.type",
+  "page.select",
+  "page.scroll",
+  "page.back",
+  "page.forward",
+  "page.reload",
+  "tabs.list",
+  "tabs.activate",
+  "tabs.close",
+]);
 
 const STORAGE_KEYS = Object.freeze({
   token: "pairingToken",
   enabled: "connectionEnabled",
 });
 
+const COMMAND_KEYS = Object.freeze({
+  "page.inspect": ["action", "tabId", "expectedUrl"],
+  "page.navigate": ["action", "tabId", "expectedUrl", "url", "newTab"],
+  "page.click": ["action", "tabId", "expectedUrl", "snapshotId", "elementId"],
+  "page.type": [
+    "action",
+    "tabId",
+    "expectedUrl",
+    "snapshotId",
+    "elementId",
+    "text",
+    "clear",
+    "submit",
+  ],
+  "page.select": ["action", "tabId", "expectedUrl", "snapshotId", "elementId", "value"],
+  "page.scroll": ["action", "tabId", "expectedUrl", "direction", "amount"],
+  "page.back": ["action", "tabId", "expectedUrl"],
+  "page.forward": ["action", "tabId", "expectedUrl"],
+  "page.reload": ["action", "tabId", "expectedUrl"],
+  "tabs.list": ["action"],
+  "tabs.activate": ["action", "tabId", "expectedUrl"],
+  "tabs.close": ["action", "tabId", "expectedUrl"],
+});
+
 let initialized = false;
 let initializePromise = null;
 let pairingToken = "";
 let connectionEnabled = false;
+let websiteAccessEnabled = false;
 let socket = null;
 let socketGeneration = 0;
 let heartbeatTimer = null;
@@ -33,8 +74,9 @@ let lastError = "";
 let connectionState = "disconnected";
 let connectionSession = 0;
 let pendingHandshake = null;
+let commandQueue = Promise.resolve();
 
-const activeSearches = new Map();
+const activeCommands = new Map();
 const cancelledRequestIds = new Set();
 const queuedResponses = [];
 
@@ -66,6 +108,14 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
+chrome.permissions.onAdded.addListener(() => {
+  void refreshWebsiteAccess();
+});
+
+chrome.permissions.onRemoved.addListener(() => {
+  void refreshWebsiteAccess();
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   void handlePopupMessage(message)
     .then(sendResponse)
@@ -94,6 +144,7 @@ async function initialize() {
     ]);
     pairingToken = normalizeToken(stored[STORAGE_KEYS.token]);
     connectionEnabled = stored[STORAGE_KEYS.enabled] === true;
+    websiteAccessEnabled = await hasWebsiteAccess();
     initialized = true;
 
     if (connectionEnabled && pairingToken) {
@@ -120,6 +171,11 @@ async function handlePopupMessage(message) {
 
   switch (message.type) {
     case "status.get":
+      await refreshWebsiteAccess(false);
+      return { ok: true, status: getStatusSnapshot() };
+
+    case "permissions.refresh":
+      await refreshWebsiteAccess();
       return { ok: true, status: getStatusSnapshot() };
 
     case "token.save": {
@@ -249,6 +305,7 @@ function connect() {
       version: PROTOCOL_VERSION,
       type: "hello",
       clientNonce,
+      capabilities: [...CAPABILITIES],
     });
     broadcastStatus();
   });
@@ -304,7 +361,7 @@ function closeSocket(wasRequestedByUser) {
     try {
       previousSocket.close(1000, wasRequestedByUser ? "Disconnected by user" : "Reconnect");
     } catch {
-      // Closing is best-effort; the generation guard ignores stale events.
+      // The generation guard ignores stale close events.
     }
   }
 
@@ -459,18 +516,16 @@ async function handleSocketMessage(rawMessage) {
     case "pong":
       return;
 
-    case "search.request":
-      if (connectionState !== "connected") {
-        return;
+    case "browser.command":
+      if (connectionState === "connected") {
+        void enqueueBrowserCommand(message);
       }
-      await handleSearchRequest(message);
       return;
 
-    case "search.cancel":
-      if (connectionState !== "connected") {
-        return;
+    case "browser.cancel":
+      if (connectionState === "connected") {
+        handleBrowserCancellation(message);
       }
-      await handleSearchCancellation(message);
       return;
 
     default:
@@ -478,176 +533,580 @@ async function handleSocketMessage(rawMessage) {
   }
 }
 
-async function handleSearchRequest(message) {
-  const id = typeof message.id === "string" ? message.id.trim() : "";
-  if (!id || id.length > MAX_REQUEST_ID_LENGTH) {
-    sendSearchError("invalid", "invalid_request", "The search request ID is invalid.");
+async function enqueueBrowserCommand(message) {
+  const id = normalizedRequestID(message.id);
+  if (!id) {
+    sendBrowserError("invalid", "invalid_request", "The browser command ID is invalid.");
     return;
   }
-
   if (cancelledRequestIds.delete(id)) {
     return;
   }
-
-  if (activeSearches.has(id)) {
-    sendSearchError(id, "duplicate_request", "A search with this ID is already running.");
+  if (activeCommands.has(id)) {
+    sendBrowserError(id, "duplicate_request", "A browser command with this ID is already running.");
     return;
   }
-  if (activeSearches.size >= MAX_ACTIVE_SEARCHES) {
-    sendSearchError(id, "busy", "Orchard Browser Search is already handling other searches.");
-    return;
-  }
-
-  const query = typeof message.query === "string" ? message.query.trim() : "";
-  if (!query || query.length > MAX_QUERY_LENGTH) {
-    sendSearchError(
-      id,
-      "invalid_query",
-      `The query must contain 1 to ${MAX_QUERY_LENGTH} characters.`,
-    );
+  if (activeCommands.size >= MAX_PENDING_COMMANDS) {
+    sendBrowserError(id, "busy", "Orchard Browser Control is already handling other commands.");
     return;
   }
 
-  const requestedMax = Number.isFinite(message.maxResults)
-    ? Math.trunc(message.maxResults)
-    : MAX_RESULTS;
-  const maxResults = Math.max(1, Math.min(MAX_RESULTS, requestedMax));
-  const requestSession = connectionSession;
-  const activeSearch = {
+  const context = {
     cancelled: false,
-    tabId: null,
-    pageLoaded: false,
+    session: connectionSession,
   };
+  activeCommands.set(id, context);
 
-  activeSearches.set(id, activeSearch);
-  try {
-    const result = await searchGoogle(query, maxResults, activeSearch);
-    if (activeSearch.cancelled || !connectionEnabled || requestSession !== connectionSession) {
-      return;
-    }
-    queueOrSendResponse({
-      version: PROTOCOL_VERSION,
-      type: "search.response",
-      id,
-      ok: true,
-      result,
-    });
-  } catch (error) {
-    if (
-      activeSearch.cancelled ||
-      !connectionEnabled ||
-      requestSession !== connectionSession
-    ) {
-      return;
-    }
-    const normalized = normalizeSearchError(error);
-    sendSearchError(id, normalized.code, normalized.message);
-  } finally {
-    activeSearches.delete(id);
-  }
-}
-
-async function handleSearchCancellation(message) {
-  const id = typeof message.id === "string" ? message.id.trim() : "";
-  if (!id || id.length > MAX_REQUEST_ID_LENGTH) {
-    return;
-  }
-
-  const activeSearch = activeSearches.get(id);
-  if (!activeSearch) {
-    if (cancelledRequestIds.size >= MAX_CANCELLED_REQUEST_IDS) {
-      cancelledRequestIds.delete(cancelledRequestIds.values().next().value);
-    }
-    cancelledRequestIds.add(id);
-    return;
-  }
-  activeSearch.cancelled = true;
-
-  if (!Number.isInteger(activeSearch.tabId) || activeSearch.pageLoaded) {
-    return;
-  }
-
-  try {
-    const tab = await chrome.tabs.get(activeSearch.tabId);
-    if (tab.status === "complete") {
-      activeSearch.pageLoaded = true;
-      return;
-    }
-    await chrome.tabs.remove(activeSearch.tabId);
-  } catch {
-    // The tab may have loaded or been closed while cancellation was propagating.
-  }
-}
-
-async function searchGoogle(query, maxResults, activeSearch) {
-  const searchURL = new URL("https://www.google.com/search");
-  searchURL.searchParams.set("q", query);
-  searchURL.searchParams.set("hl", "en");
-  searchURL.searchParams.set("pws", "0");
-
-  let tab;
-  try {
-    tab = await chrome.tabs.create({ url: searchURL.href, active: true });
-  } catch (error) {
-    throw new SearchError("tab_open_failed", `Could not open a search tab: ${toErrorMessage(error)}`);
-  }
-
-  if (!Number.isInteger(tab.id)) {
-    throw new SearchError("tab_open_failed", "Chrome did not return a usable search tab.");
-  }
-
-  activeSearch.tabId = tab.id;
-  activeSearch.pageLoaded = tab.status === "complete";
-  if (activeSearch.cancelled) {
-    if (!activeSearch.pageLoaded) {
+  const run = commandQueue
+    .catch(() => undefined)
+    .then(async () => {
       try {
-        await chrome.tabs.remove(tab.id);
-      } catch {
-        // Cancellation is already complete even if Chrome closed the tab first.
+        if (context.cancelled || context.session !== connectionSession || !connectionEnabled) {
+          return;
+        }
+        const result = await executeBrowserCommand(message.command);
+        if (context.cancelled || context.session !== connectionSession || !connectionEnabled) {
+          return;
+        }
+        queueOrSendResponse({
+          version: PROTOCOL_VERSION,
+          type: "browser.response",
+          id,
+          ok: true,
+          result,
+        });
+      } catch (error) {
+        if (context.cancelled || context.session !== connectionSession || !connectionEnabled) {
+          return;
+        }
+        const normalized = normalizeBrowserError(error);
+        sendBrowserError(id, normalized.code, normalized.message);
+      } finally {
+        activeCommands.delete(id);
+      }
+    });
+  commandQueue = run.catch(() => undefined);
+  await run;
+}
+
+function handleBrowserCancellation(message) {
+  const id = normalizedRequestID(message.id);
+  if (!id) {
+    return;
+  }
+  const active = activeCommands.get(id);
+  if (active) {
+    active.cancelled = true;
+    return;
+  }
+  if (cancelledRequestIds.size >= MAX_CANCELLED_REQUEST_IDS) {
+    cancelledRequestIds.delete(cancelledRequestIds.values().next().value);
+  }
+  cancelledRequestIds.add(id);
+}
+
+async function executeBrowserCommand(command) {
+  validateCommandShape(command);
+  const action = command.action;
+
+  if (action === "tabs.list") {
+    return {
+      action,
+      outcome: "Listed the available normal Chrome tabs.",
+      page: null,
+      tabs: await listTabs(),
+    };
+  }
+
+  if (action === "tabs.activate") {
+    const tab = await resolveExpectedTab(command);
+    const tabId = tab.id;
+    await chrome.tabs.update(tabId, { active: true });
+    if (Number.isInteger(tab.windowId) && chrome.windows?.update) {
+      await chrome.windows.update(tab.windowId, { focused: true }).catch(() => undefined);
+    }
+    let observation;
+    if (!isControllableURL(tab.url)) {
+      observation = {
+        page: null,
+        observationWarning:
+          "The tab was activated, but Chrome does not allow Orchard to inspect this page. " +
+          "Choose an HTTP or HTTPS tab before using page controls.",
+      };
+    } else if (!(await hasWebsiteAccess())) {
+      observation = {
+        page: null,
+        observationWarning:
+          "The tab was activated, but website control is not enabled. " +
+          "Enable Website Control in the extension popup before inspecting it.",
+      };
+    } else {
+      observation = await observePageAfterMutation(tabId, async () => undefined);
+    }
+    return {
+      action,
+      outcome: `Activated Chrome tab ${tabId}.`,
+      ...observation,
+      // A semantic page snapshot and a tab listing are each independently
+      // bounded near 90 KiB. Never combine them in one bridge response.
+      tabs: null,
+    };
+  }
+
+  if (action === "tabs.close") {
+    const tab = await resolveExpectedTab(command);
+    const tabId = tab.id;
+    await chrome.tabs.remove(tabId);
+    let tabs = null;
+    let observationWarning = null;
+    try {
+      tabs = await listTabs();
+    } catch {
+      observationWarning =
+        "The Chrome tab was closed, but Orchard could not refresh the remaining tab list. " +
+        "List Chrome tabs again before using tab IDs.";
+    }
+    return {
+      action,
+      outcome: `Closed Chrome tab ${tabId}.`,
+      page: null,
+      tabs,
+      observationWarning,
+    };
+  }
+
+  if (action === "page.navigate") {
+    const url = validatedNavigationURL(command.url);
+    await requireWebsiteAccess();
+    const newTab = optionalBoolean(command.newTab, false);
+    let tab;
+    if (newTab) {
+      if (command.tabId !== undefined && command.tabId !== null) {
+        throw new BrowserCommandError(
+          "invalid_command",
+          "Do not provide a tab ID when opening a new tab.",
+        );
+      }
+      tab = await chrome.tabs.create({ url, active: true });
+    } else {
+      const target = await resolveExpectedTab(command);
+      tab = await chrome.tabs.update(target.id, { url, active: true });
+    }
+    if (!Number.isInteger(tab?.id)) {
+      throw new BrowserCommandError("tab_unavailable", "Chrome did not return a usable tab.");
+    }
+    const observation = await observePageAfterMutation(
+      tab.id,
+      () => waitForTabLoad(tab.id, tab.status),
+    );
+    return {
+      action,
+      outcome: `Navigated Chrome to ${url}.`,
+      ...observation,
+      tabs: null,
+    };
+  }
+
+  if (["page.back", "page.forward", "page.reload"].includes(action)) {
+    await requireWebsiteAccess();
+    const tab = await resolveExpectedTab(command);
+    if (action === "page.back") {
+      await chrome.tabs.goBack(tab.id);
+    } else if (action === "page.forward") {
+      await chrome.tabs.goForward(tab.id);
+    } else {
+      await chrome.tabs.reload(tab.id);
+    }
+    const observation = await observePageAfterMutation(tab.id, () => settleTab(tab.id));
+    return {
+      action,
+      outcome:
+        action === "page.back"
+          ? "Went back in Chrome history."
+          : action === "page.forward"
+            ? "Went forward in Chrome history."
+            : "Reloaded the Chrome tab.",
+      ...observation,
+      tabs: null,
+    };
+  }
+
+  if (action === "page.inspect") {
+    const tab = await resolveTab(requiredTabID(command));
+    return {
+      action,
+      outcome: "Inspected the Chrome tab.",
+      page: await inspectTab(tab.id, requiredExpectedURL(command)),
+      tabs: null,
+    };
+  }
+
+  if (["page.click", "page.type", "page.select", "page.scroll"].includes(action)) {
+    const tabId = requiredTabID(command);
+    requiredExpectedURL(command);
+    if (action !== "page.scroll") {
+      requiredIdentifier(command.snapshotId, "snapshot ID", 128);
+      requiredIdentifier(command.elementId, "element ID", 64);
+    }
+    if (action === "page.type") {
+      if (typeof command.text !== "string" || command.text.length > 20_000) {
+        throw new BrowserCommandError("invalid_text", "Text must be at most 20000 characters.");
+      }
+      optionalBoolean(command.clear, true);
+      optionalBoolean(command.submit, false);
+    }
+    if (action === "page.select") {
+      if (typeof command.value !== "string" || command.value.length > 500) {
+        throw new BrowserCommandError("invalid_value", "The option value is invalid.");
       }
     }
-    throw new SearchError("cancelled", "The browser search was cancelled.");
+    if (action === "page.scroll") {
+      if (!["up", "down", "left", "right"].includes(command.direction)) {
+        throw new BrowserCommandError("invalid_direction", "The scroll direction is invalid.");
+      }
+      if (
+        command.amount !== undefined &&
+        (!Number.isInteger(command.amount) || command.amount < 1 || command.amount > 5_000)
+      ) {
+        throw new BrowserCommandError("invalid_amount", "The scroll amount must be 1 through 5000.");
+      }
+    }
+
+    const pageResult = await runPageAgentCommand(tabId, command);
+    if (pageResult.ok !== true) {
+      throw new BrowserCommandError(
+        typeof pageResult.code === "string" ? pageResult.code : "page_action_failed",
+        typeof pageResult.message === "string"
+          ? pageResult.message
+          : "The page action could not be completed.",
+      );
+    }
+    const observation = await observePageAfterMutation(
+      tabId,
+      () => settleAfterPageAction(
+        tabId,
+        action === "page.click" || (action === "page.type" && command.submit === true),
+      ),
+    );
+    return {
+      action,
+      outcome: String(pageResult.outcome || "Completed the browser action.").slice(0, 1_000),
+      ...observation,
+      tabs: null,
+    };
   }
 
-  await waitForTabLoad(tab.id, tab.status);
-  activeSearch.pageLoaded = true;
-  if (activeSearch.cancelled) {
-    throw new SearchError("cancelled", "The browser search was cancelled.");
-  }
+  throw new BrowserCommandError("unsupported_action", "That browser action is not supported.");
+}
 
-  let injectionResults;
+function validateCommandShape(command) {
+  if (!isPlainObject(command) || typeof command.action !== "string") {
+    throw new BrowserCommandError("invalid_command", "The browser command is invalid.");
+  }
+  const allowedKeys = COMMAND_KEYS[command.action];
+  if (!allowedKeys) {
+    throw new BrowserCommandError("unsupported_action", "That browser action is not supported.");
+  }
+  const allowed = new Set(allowedKeys);
+  if (Object.keys(command).some((key) => !allowed.has(key))) {
+    throw new BrowserCommandError(
+      "unexpected_argument",
+      "The browser command contained an unexpected argument.",
+    );
+  }
+  const opensNewTab = command.action === "page.navigate" && command.newTab === true;
+  if (command.action === "tabs.list" || opensNewTab) {
+    if (Object.prototype.hasOwnProperty.call(command, "expectedUrl")) {
+      throw new BrowserCommandError(
+        "unexpected_argument",
+        "This browser command must not include an expected tab URL.",
+      );
+    }
+  } else if (command.tabId !== undefined && command.tabId !== null) {
+    requiredExpectedURL(command);
+  }
+}
+
+async function resolveTab(tabId) {
+  if (tabId !== null && tabId !== undefined) {
+    return chrome.tabs.get(tabId);
+  }
+  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const tab = tabs.find((candidate) => Number.isInteger(candidate.id));
+  if (!tab) {
+    throw new BrowserCommandError("tab_unavailable", "Chrome has no active tab to control.");
+  }
+  return tab;
+}
+
+async function resolveExpectedTab(command) {
+  const tab = await chrome.tabs.get(requiredTabID(command));
+  assertExpectedTabURL(tab, requiredExpectedURL(command));
+  return tab;
+}
+
+function assertExpectedTabURL(tab, expectedURL) {
+  const currentURL = normalizedTabURL(tab?.url);
+  if (!currentURL || currentURL !== expectedURL) {
+    throw new BrowserCommandError(
+      "stale_tab",
+      "The Chrome tab changed after Orchard observed it. List or inspect tabs again.",
+    );
+  }
+}
+
+function requiredExpectedURL(command) {
+  const expectedURL = normalizedTabURL(command.expectedUrl);
+  if (!expectedURL) {
+    throw new BrowserCommandError(
+      "invalid_expected_url",
+      "The expected Chrome tab URL is missing or invalid.",
+    );
+  }
+  return expectedURL;
+}
+
+function normalizedTabURL(rawValue) {
+  if (typeof rawValue !== "string" || rawValue.length === 0 || rawValue.length > 4_096) {
+    return null;
+  }
   try {
-    injectionResults = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
+    const url = new URL(rawValue);
+    return url.href.length <= 4_096 ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function requiredTabID(command) {
+  const tabId = optionalTabID(command);
+  if (tabId === null) {
+    throw new BrowserCommandError("missing_tab", "A Chrome tab ID is required.");
+  }
+  return tabId;
+}
+
+function optionalTabID(command) {
+  if (command.tabId === undefined || command.tabId === null) {
+    return null;
+  }
+  if (!Number.isInteger(command.tabId) || command.tabId < 0) {
+    throw new BrowserCommandError("invalid_tab", "The Chrome tab ID is invalid.");
+  }
+  return command.tabId;
+}
+
+function requiredIdentifier(value, label, maximumLength) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > maximumLength ||
+    !/^[A-Za-z0-9._:-]+$/.test(value)
+  ) {
+    throw new BrowserCommandError("invalid_identifier", `The ${label} is invalid.`);
+  }
+  return value;
+}
+
+function optionalBoolean(value, fallback) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  if (typeof value !== "boolean") {
+    throw new BrowserCommandError("invalid_command", "A browser command flag is invalid.");
+  }
+  return value;
+}
+
+function validatedNavigationURL(rawValue) {
+  if (typeof rawValue !== "string" || rawValue.length === 0 || rawValue.length > 4_096) {
+    throw new BrowserCommandError("invalid_url", "The navigation URL is invalid.");
+  }
+  let url;
+  try {
+    url = new URL(rawValue);
+  } catch {
+    throw new BrowserCommandError("invalid_url", "The navigation URL is invalid.");
+  }
+  if (!/^https?:$/.test(url.protocol) || !url.hostname || url.username || url.password) {
+    throw new BrowserCommandError(
+      "unsafe_url",
+      "Only complete HTTP or HTTPS URLs without embedded credentials are allowed.",
+    );
+  }
+  return url.href;
+}
+
+async function listTabs() {
+  const tabs = await chrome.tabs.query({ windowType: "normal" });
+  const candidates = tabs
+    .filter((tab) => Number.isInteger(tab.id) && Number.isInteger(tab.windowId))
+    .sort((left, right) => Number(right.active) - Number(left.active))
+    .slice(0, 40)
+    .map((tab) => ({
+      id: tab.id,
+      windowId: tab.windowId,
+      active: Boolean(tab.active),
+      title: normalizedText(tab.title, 500),
+      url: sanitizedTabURL(tab.url),
+      controllable: isControllableURL(tab.url),
+    }));
+
+  const encoder = new TextEncoder();
+  const boundedTabs = [];
+  let encodedBytes = 2; // Opening and closing JSON array brackets.
+  for (const tab of candidates) {
+    const tabBytes = encoder.encode(JSON.stringify(tab)).byteLength;
+    const delimiterBytes = boundedTabs.length === 0 ? 0 : 1;
+    if (encodedBytes + delimiterBytes + tabBytes > MAX_TAB_LIST_BYTES) {
+      break;
+    }
+    boundedTabs.push(tab);
+    encodedBytes += delimiterBytes + tabBytes;
+  }
+  return boundedTabs;
+}
+
+function sanitizedTabURL(rawValue) {
+  if (typeof rawValue !== "string" || rawValue.length === 0 || rawValue.length > 4_096) {
+    return "";
+  }
+  const value = rawValue.replace(/\u0000/g, "").trim();
+  try {
+    const url = new URL(value);
+    if (/^https?:$/.test(url.protocol)) {
+      url.username = "";
+      url.password = "";
+      return url.href.length <= 4_096 ? url.href : "";
+    }
+    return url.href.length <= 4_096 ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function isControllableURL(rawValue) {
+  try {
+    const url = new URL(rawValue);
+    return /^https?:$/.test(url.protocol) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+async function inspectTab(tabId, expectedURL = null) {
+  const tab = await chrome.tabs.get(tabId);
+  if (!isControllableURL(tab.url)) {
+    throw new BrowserCommandError(
+      "restricted_page",
+      "Chrome does not allow Orchard to control this page. Use an HTTP or HTTPS tab.",
+    );
+  }
+  await requireWebsiteAccess();
+
+  const command = expectedURL === null
+    ? { action: "page.inspect" }
+    : { action: "page.inspect", expectedUrl: expectedURL };
+  const response = await runPageAgentCommand(tabId, command);
+  if (response.ok !== true || !isPlainObject(response.snapshot)) {
+    throw new BrowserCommandError(
+      typeof response.code === "string" ? response.code : "inspection_failed",
+      typeof response.message === "string"
+        ? response.message
+        : "The extension could not inspect this page.",
+    );
+  }
+  return {
+    tabId,
+    ...response.snapshot,
+    loading: tab.status !== "complete" || response.snapshot.loading === true,
+  };
+}
+
+async function observePageAfterMutation(tabId, settle) {
+  try {
+    await settle();
+    return {
+      page: await inspectTab(tabId),
+      observationWarning: null,
+    };
+  } catch {
+    return {
+      page: null,
+      observationWarning:
+        "The browser action succeeded, but Orchard could not inspect the resulting page. " +
+        "Inspect the tab again before using page or element IDs.",
+    };
+  }
+}
+
+async function requireWebsiteAccess() {
+  if (!(await hasWebsiteAccess())) {
+    throw new BrowserCommandError(
+      "website_access_required",
+      "Open the extension popup and choose Enable Website Control first.",
+    );
+  }
+}
+
+async function runPageAgentCommand(tabId, command) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
       world: "ISOLATED",
-      func: extractGooglePage,
-      args: [maxResults],
+      files: ["page-agent.js"],
     });
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "ISOLATED",
+      func: invokePageAgent,
+      args: [command],
+    });
+    const result = results?.[0]?.result;
+    if (!isPlainObject(result)) {
+      throw new BrowserCommandError(
+        "page_agent_unavailable",
+        "The page did not return a usable browser-control result.",
+      );
+    }
+    return result;
   } catch (error) {
-    throw new SearchError(
+    if (error instanceof BrowserCommandError) {
+      throw error;
+    }
+    throw new BrowserCommandError(
       "page_unavailable",
-      `The Google page could not be read. It may have redirected to a consent or error page. ${toErrorMessage(error)}`,
+      `Chrome could not control this page: ${toErrorMessage(error)}`,
     );
   }
+}
 
-  if (activeSearch.cancelled) {
-    throw new SearchError("cancelled", "The browser search was cancelled.");
+function invokePageAgent(command) {
+  const agent = globalThis.__orchardBrowserControlAgentV2;
+  if (!agent || typeof agent.run !== "function") {
+    return {
+      ok: false,
+      code: "page_agent_unavailable",
+      message: "The Orchard page controller is unavailable.",
+    };
   }
+  return agent.run(command);
+}
 
-  const extraction = injectionResults?.[0]?.result;
-  if (!isPlainObject(extraction)) {
-    throw new SearchError("extraction_failed", "The search page returned no readable content.");
+async function settleAfterPageAction(tabId, mayNavigate) {
+  await delay(mayNavigate ? 300 : 120);
+  const tab = await chrome.tabs.get(tabId);
+  if (tab.status === "loading") {
+    await waitForTabLoad(tabId, tab.status);
+  } else {
+    await delay(120);
   }
-  if (extraction.ok !== true) {
-    throw new SearchError(
-      typeof extraction.code === "string" ? extraction.code : "extraction_failed",
-      typeof extraction.message === "string"
-        ? extraction.message
-        : "The search page could not be used.",
-    );
-  }
+}
 
-  return extraction.result;
+async function settleTab(tabId) {
+  await delay(100);
+  const tab = await chrome.tabs.get(tabId);
+  await waitForTabLoad(tabId, tab.status);
 }
 
 function waitForTabLoad(tabId, initialStatus) {
@@ -657,16 +1116,13 @@ function waitForTabLoad(tabId, initialStatus) {
 
   return new Promise((resolve, reject) => {
     let settled = false;
-
     const cleanup = () => {
       chrome.tabs.onUpdated.removeListener(onUpdated);
       chrome.tabs.onRemoved.removeListener(onRemoved);
       clearTimeout(timeout);
     };
     const finish = (callback) => {
-      if (settled) {
-        return;
-      }
+      if (settled) return;
       settled = true;
       cleanup();
       callback();
@@ -678,18 +1134,17 @@ function waitForTabLoad(tabId, initialStatus) {
     };
     const onRemoved = (removedTabId) => {
       if (removedTabId === tabId) {
-        finish(() => reject(new SearchError("tab_closed", "The search tab was closed before it loaded.")));
+        finish(() => reject(new BrowserCommandError("tab_closed", "The Chrome tab was closed.")));
       }
     };
     const timeout = setTimeout(() => {
-      finish(() => reject(new SearchError("load_timeout", "The Google search page took too long to load.")));
+      finish(() =>
+        reject(new BrowserCommandError("load_timeout", "The Chrome page took too long to load.")),
+      );
     }, LOAD_TIMEOUT_MS);
 
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.tabs.onRemoved.addListener(onRemoved);
-
-    // The tab can finish between tabs.create() resolving and listener registration.
-    // Re-reading its status after the listeners are attached closes that race.
     void chrome.tabs
       .get(tabId)
       .then((currentTab) => {
@@ -698,178 +1153,25 @@ function waitForTabLoad(tabId, initialStatus) {
         }
       })
       .catch(() => {
-        finish(() =>
-          reject(new SearchError("tab_closed", "The search tab is no longer available.")),
-        );
+        finish(() => reject(new BrowserCommandError("tab_closed", "The Chrome tab is gone.")));
       });
   });
 }
 
-// This fixed, bundled function is serialized by chrome.scripting. It never evaluates
-// text from Orchard or from the page as code.
-function extractGooglePage(requestedMaxResults) {
-  const MAX_VISIBLE_TEXT_LENGTH = 20_000;
-  const MAX_TITLE_LENGTH = 300;
-  const MAX_URL_LENGTH = 2_048;
-  const MAX_SNIPPET_LENGTH = 1_200;
-
-  const normalizeText = (value, limit) =>
-    String(value || "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, limit);
-  const isSearchGoogleHost = (value) => value === "google.com" || value === "www.google.com";
-  const isInternalGoogleURL = (value) =>
-    isSearchGoogleHost(value.hostname) &&
-    ["/search", "/url", "/aclk", "/imgres", "/preferences", "/setprefs"].includes(
-      value.pathname,
-    );
-
-  const bodyText = normalizeText(document.body?.innerText, MAX_VISIBLE_TEXT_LENGTH);
-  const hostname = location.hostname.toLowerCase();
-  const pathname = location.pathname.toLowerCase();
-  const hasPageMarker = (...selectors) =>
-    selectors.some((selector) => Boolean(document.querySelector?.(selector)));
-
-  if (
-    hostname === "consent.google.com" ||
-    hasPageMarker(
-      "form[action*='consent.google.com']",
-      "form[action*='/consent']",
-      "#consent-bump",
-    )
-  ) {
-    return {
-      ok: false,
-      code: "consent_required",
-      message: "Google is asking for consent. Complete that page in the visible tab, then try again.",
-    };
-  }
-
-  if (
-    pathname.startsWith("/sorry/") ||
-    hasPageMarker(
-      "form[action*='/sorry/']",
-      "#captcha-form",
-      "iframe[src*='recaptcha']",
-      "textarea[name='g-recaptcha-response']",
-    )
-  ) {
-    return {
-      ok: false,
-      code: "captcha_required",
-      message: "Google requires a CAPTCHA. Complete it in the visible tab, then try again.",
-    };
-  }
-
-  if (hostname !== "www.google.com" || pathname !== "/search") {
-    return {
-      ok: false,
-      code: "unexpected_page",
-      message: "Google redirected the search to an unsupported page.",
-    };
-  }
-
-  if (
-    pathname === "/error" ||
-    /^error\s+\d{3}\s+\(server error\)(?:!!1)?$/i.test((document.title || "").trim())
-  ) {
-    return {
-      ok: false,
-      code: "search_page_error",
-      message: "Google returned an error page. Try the search again.",
-    };
-  }
-
-  const maxResults = Math.max(1, Math.min(8, Number(requestedMaxResults) || 8));
-  const results = [];
-  const seenURLs = new Set();
-  const headings = document.querySelectorAll("#search a > h3, #rso a > h3");
-
-  for (const heading of headings) {
-    if (results.length >= maxResults) {
-      break;
-    }
-
-    const anchor = heading.closest("a");
-    const title = normalizeText(heading.innerText || heading.textContent, MAX_TITLE_LENGTH);
-    if (!anchor || !title) {
-      continue;
-    }
-
-    let url;
-    try {
-      const candidate = new URL(anchor.href, location.href);
-      if (isSearchGoogleHost(candidate.hostname) && candidate.pathname === "/url") {
-        const unwrapped = candidate.searchParams.get("q") || candidate.searchParams.get("url");
-        if (!unwrapped) {
-          continue;
-        }
-        url = new URL(unwrapped);
-      } else {
-        url = candidate;
-      }
-    } catch {
-      continue;
-    }
-
-    if (!/^https?:$/.test(url.protocol) || isInternalGoogleURL(url)) {
-      continue;
-    }
-
-    url.username = "";
-    url.password = "";
-    url.hash = "";
-    if (url.href.length > MAX_URL_LENGTH) {
-      continue;
-    }
-    const normalizedURL = url.href;
-    if (seenURLs.has(normalizedURL)) {
-      continue;
-    }
-
-    const container =
-      heading.closest(".MjjYud") ||
-      heading.closest(".g") ||
-      heading.closest("[data-hveid]") ||
-      anchor.parentElement;
-    const snippetElement = container?.querySelector(
-      ".VwiC3b, [data-sncf], .IsZvec, .aCOpRe, [data-content-feature='1']",
-    );
-    let snippet = normalizeText(
-      snippetElement?.innerText || snippetElement?.textContent,
-      MAX_SNIPPET_LENGTH,
-    );
-
-    if (!snippet && container) {
-      snippet = normalizeText(container.innerText || container.textContent, MAX_SNIPPET_LENGTH);
-      if (snippet.startsWith(title)) {
-        snippet = normalizeText(snippet.slice(title.length), MAX_SNIPPET_LENGTH);
-      }
-    }
-
-    seenURLs.add(normalizedURL);
-    results.push({ title, url: normalizedURL, snippet });
-  }
-
-  return {
-    ok: true,
-    result: {
-      pageTitle: normalizeText(document.title, MAX_TITLE_LENGTH),
-      pageURL: location.href.slice(0, MAX_URL_LENGTH),
-      visibleText: bodyText,
-      results,
-    },
-  };
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function sendSearchError(id, code, message) {
+function sendBrowserError(id, code, message) {
   queueOrSendResponse({
     version: PROTOCOL_VERSION,
-    type: "search.response",
+    type: "browser.response",
     id,
     ok: false,
-    error: { code, message },
+    error: {
+      code: normalizedErrorCode(code),
+      message: normalizedText(message, 500) || "The browser command failed.",
+    },
   });
 }
 
@@ -877,7 +1179,6 @@ function queueOrSendResponse(response) {
   if (connectionState === "connected" && sendNow(response)) {
     return;
   }
-
   if (queuedResponses.length >= MAX_QUEUED_RESPONSES) {
     queuedResponses.shift();
   }
@@ -897,7 +1198,6 @@ function sendNow(message) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return false;
   }
-
   try {
     socket.send(JSON.stringify(message));
     return true;
@@ -911,6 +1211,7 @@ function getStatusSnapshot() {
     state: connectionState,
     enabled: connectionEnabled,
     hasToken: Boolean(pairingToken),
+    websiteAccess: websiteAccessEnabled,
     error: lastError,
     endpoint: LOOPBACK_URL,
   };
@@ -924,8 +1225,44 @@ function broadcastStatus() {
     });
 }
 
+async function hasWebsiteAccess() {
+  try {
+    return await chrome.permissions.contains({ origins: [...WEBSITE_ORIGINS] });
+  } catch {
+    return false;
+  }
+}
+
+async function refreshWebsiteAccess(shouldBroadcast = true) {
+  const nextValue = await hasWebsiteAccess();
+  const changed = websiteAccessEnabled !== nextValue;
+  websiteAccessEnabled = nextValue;
+  if (shouldBroadcast && changed) {
+    broadcastStatus();
+  }
+}
+
 function normalizeToken(value) {
   return typeof value === "string" ? value.trim().slice(0, 512) : "";
+}
+
+function normalizedRequestID(value) {
+  if (typeof value !== "string") return "";
+  const id = value.trim();
+  return id && id.length <= MAX_REQUEST_ID_LENGTH ? id : "";
+}
+
+function normalizedText(value, maximumLength) {
+  return typeof value === "string"
+    ? value.replace(/\u0000/g, "").replace(/\s+/g, " ").trim().slice(0, maximumLength)
+    : "";
+}
+
+function normalizedErrorCode(value) {
+  const code = String(value || "browser_error")
+    .replace(/[^A-Za-z0-9._-]/g, "")
+    .slice(0, 64);
+  return code || "browser_error";
 }
 
 function makeAuthenticationNonce() {
@@ -1001,13 +1338,8 @@ function advanceConnectionSession() {
   connectionSession += 1;
   queuedResponses.length = 0;
   cancelledRequestIds.clear();
-  for (const activeSearch of activeSearches.values()) {
-    activeSearch.cancelled = true;
-    if (Number.isInteger(activeSearch.tabId) && !activeSearch.pageLoaded) {
-      void chrome.tabs.remove(activeSearch.tabId).catch(() => {
-        // The tab may already be gone.
-      });
-    }
+  for (const command of activeCommands.values()) {
+    command.cancelled = true;
   }
 }
 
@@ -1029,17 +1361,17 @@ function toErrorMessage(error) {
   return error instanceof Error && error.message ? error.message : String(error || "Unknown error");
 }
 
-function normalizeSearchError(error) {
-  if (error instanceof SearchError) {
+function normalizeBrowserError(error) {
+  if (error instanceof BrowserCommandError) {
     return { code: error.code, message: error.message };
   }
-  return { code: "search_failed", message: toErrorMessage(error) };
+  return { code: "browser_failed", message: toErrorMessage(error) };
 }
 
-class SearchError extends Error {
+class BrowserCommandError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = "SearchError";
+    this.name = "BrowserCommandError";
     this.code = code;
   }
 }
