@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -35,11 +36,14 @@ struct SettingsView: View {
             actionSettings
                 .tabItem { Label("Actions", systemImage: "checkmark.shield") }
 
+            browserSettings
+                .tabItem { Label("Browser", systemImage: "globe") }
+
             aboutView
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .scenePadding()
-        .frame(width: 580, height: 430)
+        .frame(width: 600, height: 470)
         .onAppear {
             assistant.refreshAPIKeyState()
         }
@@ -97,7 +101,7 @@ struct SettingsView: View {
             }
 
             Section("Privacy") {
-                Text("Your typed prompts and conversation context are sent to OpenRouter and the selected model provider. The API key stays in Keychain and is never stored in app preferences.")
+                Text("Your typed prompts, conversation context, and browser-search evidence are sent to OpenRouter and the selected model provider. The API key stays in Keychain and is never stored in app preferences.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -184,17 +188,98 @@ struct SettingsView: View {
                 Text("Actions require a model that supports tool calling. Turn them off if your selected model does not.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text("After browser research, Orchard always asks before later actions in that conversation, even when the setting above is off.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Allowed actions") {
                 Label("Open an installed application", systemImage: "app.dashed")
                 Label("Open an HTTPS website", systemImage: "safari")
-                Label("Search the web", systemImage: "magnifyingglass")
+                Label("Research the web through connected Chrome", systemImage: "magnifyingglass")
                 Label("Copy text to the clipboard", systemImage: "doc.on.doc")
             }
 
             Section("Safety") {
                 Text("Orchard does not expose shell commands, AppleScript, arbitrary files, messages, purchases, deletion, or Accessibility automation to the model. Unknown actions and unexpected arguments are rejected.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var browserSettings: some View {
+        let bridge = BrowserBridgeService.shared
+        return Form {
+            Section("Orchard Browser Research") {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    if let listenerError = bridge.listenerErrorDescription {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(
+                                "Browser bridge unavailable",
+                                systemImage: "exclamationmark.triangle.fill"
+                            )
+                            .foregroundStyle(.orange)
+                            Text("\(listenerError) Quit any process using 127.0.0.1:38476, then reopen Orchard.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if !bridge.isListenerReady {
+                        Label("Starting the local browser bridge", systemImage: "circle.dotted")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label(
+                            bridge.isExtensionConnected
+                                ? "Chrome extension connected"
+                                : "Waiting for the Chrome extension",
+                            systemImage: bridge.isExtensionConnected
+                                ? "checkmark.circle.fill"
+                                : "circle.dotted"
+                        )
+                        .foregroundStyle(
+                            bridge.isExtensionConnected ? OrchardTheme.green : .secondary
+                        )
+                    }
+                }
+
+                Text("The extension opens a visible Google results tab, reads only that results page, and returns bounded titles, snippets, URLs, and visible text so Orchard can answer from current web evidence.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Install") {
+                HStack {
+                    Text("1. Reveal the bundled extension and load that folder at chrome://extensions with Developer mode enabled.")
+                        .font(.callout)
+                    Spacer()
+                    Button("Reveal Extension") {
+                        if let extensionURL {
+                            NSWorkspace.shared.activateFileViewerSelecting([extensionURL])
+                        }
+                    }
+                    .disabled(extensionURL == nil)
+                }
+
+                Text("2. Copy this pairing token into the extension popup, choose Connect, and allow Chrome's local-network prompt if it appears.")
+                    .font(.callout)
+
+                HStack(spacing: 10) {
+                    Text(bridge.accessToken)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(1)
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button("Copy Token") {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(bridge.accessToken, forType: .string)
+                    }
+                }
+            }
+
+            Section("Privacy and safety") {
+                Text("Orchard listens only on this Mac's loopback interface and mutually authenticates with a random token kept in Orchard's sandboxed preferences; the token itself is never sent over the socket. Search-page text is treated as untrusted data and is sent onward only as part of the browser lookup you approve.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -256,5 +341,9 @@ struct SettingsView: View {
         } else {
             "No API key saved"
         }
+    }
+
+    private var extensionURL: URL? {
+        Bundle.main.url(forResource: "ChromeExtension", withExtension: nil)
     }
 }

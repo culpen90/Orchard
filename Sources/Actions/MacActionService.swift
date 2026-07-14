@@ -5,7 +5,7 @@ import Foundation
 enum MacActionKind: Equatable, Sendable {
     case openApplication(url: URL, name: String)
     case openURL(URL)
-    case searchWeb(url: URL, query: String)
+    case searchWeb(query: String)
     case copyToClipboard(String)
 }
 
@@ -50,6 +50,8 @@ protocol MacActionServicing: AnyObject {
 
 @MainActor
 final class MacActionService: MacActionServicing {
+    private let browserSearch: any BrowserSearching
+
     let toolDefinitions: [OpenRouterToolDefinition] = [
         OpenRouterToolDefinition(
             function: OpenRouterFunctionDefinition(
@@ -79,7 +81,7 @@ final class MacActionService: MacActionServicing {
         OpenRouterToolDefinition(
             function: OpenRouterFunctionDefinition(
                 name: "search_web",
-                description: "Search the web in the user's default browser.",
+                description: "Search the web in the user's connected Chrome browser and return current result titles, snippets, URLs, and visible search-page text. Use this when the answer depends on current or unknown internet information.",
                 parameters: OpenRouterToolParameters(
                     properties: [
                         "query": .string("The search query.")
@@ -101,6 +103,10 @@ final class MacActionService: MacActionServicing {
             )
         )
     ]
+
+    init(browserSearch: any BrowserSearching = BrowserBridgeService.shared) {
+        self.browserSearch = browserSearch
+    }
 
     func prepare(toolCall: OpenRouterToolCall) throws -> ActionProposal {
         let arguments = try decodeArguments(toolCall.function.arguments)
@@ -146,18 +152,13 @@ final class MacActionService: MacActionServicing {
         case "search_web":
             try requireOnly(arguments, keys: ["query"])
             let query = try requiredString("query", in: arguments, maximumLength: 1_000)
-            var components = URLComponents(string: "https://www.google.com/search")
-            components?.queryItems = [URLQueryItem(name: "q", value: query)]
-            guard let url = components?.url else {
-                throw MacActionError.invalidURL
-            }
             return ActionProposal(
                 toolCallID: toolCall.id,
-                title: "Search the web?",
+                title: "Research this in Chrome?",
                 detail: query,
-                confirmationTitle: "Search",
+                confirmationTitle: "Research",
                 symbolName: "magnifyingglass",
-                kind: .searchWeb(url: url, query: query)
+                kind: .searchWeb(query: query)
             )
 
         case "copy_to_clipboard":
@@ -200,13 +201,11 @@ final class MacActionService: MacActionServicing {
                 activityDescription: "Opened \(url.host ?? "website")"
             )
 
-        case .searchWeb(let url, let query):
-            guard NSWorkspace.shared.open(url) else {
-                throw MacActionError.couldNotOpen
-            }
+        case .searchWeb(let query):
+            let result = try await browserSearch.search(query: query).validated()
             return MacActionResult(
-                toolMessage: "Opened a web search for: \(query)",
-                activityDescription: "Searched the web"
+                toolMessage: try result.toolMessage(for: query),
+                activityDescription: "Researched the web in Chrome"
             )
 
         case .copyToClipboard(let text):

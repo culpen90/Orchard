@@ -1,0 +1,267 @@
+:root {
+  color-scheme: light dark;
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f5f7f5;
+  color: #172019;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 360px;
+  min-height: 490px;
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(90, 155, 100, 0.14), transparent 42%),
+    #f5f7f5;
+}
+
+main {
+  padding: 20px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: #246b37;
+  color: white;
+  font-size: 20px;
+  font-weight: 750;
+  box-shadow: 0 5px 14px rgba(36, 107, 55, 0.25);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.subtitle {
+  margin-top: 2px;
+  color: #657068;
+  font-size: 12px;
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 18px;
+  padding: 13px 14px;
+  border: 1px solid #dfe5df;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #8b938d;
+  box-shadow: 0 0 0 4px rgba(139, 147, 141, 0.13);
+}
+
+.status-dot.connected {
+  background: #2f9e44;
+  box-shadow: 0 0 0 4px rgba(47, 158, 68, 0.14);
+}
+
+.status-dot.pending {
+  background: #d68b18;
+  box-shadow: 0 0 0 4px rgba(214, 139, 24, 0.14);
+}
+
+.status-dot.error {
+  background: #d94841;
+  box-shadow: 0 0 0 4px rgba(217, 72, 65, 0.14);
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-detail {
+  max-width: 280px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: #657068;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.token-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+input {
+  min-width: 0;
+  height: 38px;
+  flex: 1;
+  border: 1px solid #cfd7d0;
+  border-right: 0;
+  border-radius: 9px 0 0 9px;
+  outline: none;
+  padding: 0 11px;
+  background: white;
+  color: #172019;
+  font: inherit;
+  font-size: 12px;
+}
+
+input:focus {
+  border-color: #3f8c51;
+  box-shadow: 0 0 0 3px rgba(63, 140, 81, 0.12);
+}
+
+button {
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 0 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.icon-button {
+  border-color: #cfd7d0;
+  border-radius: 0 9px 9px 0;
+  background: #edf1ed;
+  color: #39423b;
+  padding: 0 11px;
+}
+
+.primary {
+  background: #246b37;
+  color: white;
+}
+
+.primary:hover:not(:disabled) {
+  background: #1d5a2e;
+}
+
+.secondary {
+  border-color: #cfd7d0;
+  background: rgba(255, 255, 255, 0.78);
+  color: #39423b;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.connection-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.feedback {
+  min-height: 17px;
+  margin-top: 9px;
+  color: #276b38;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.feedback.error {
+  color: #b02f2a;
+}
+
+.privacy {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid #dfe5df;
+}
+
+.privacy h2 {
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.privacy p {
+  color: #657068;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.privacy p + p {
+  margin-top: 7px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    background: #151a16;
+    color: #edf3ee;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at top right, rgba(90, 155, 100, 0.15), transparent 42%),
+      #151a16;
+  }
+
+  .subtitle,
+  .status-detail,
+  .privacy p {
+    color: #aab4ac;
+  }
+
+  .status-card,
+  .secondary {
+    border-color: #39423b;
+    background: rgba(34, 41, 35, 0.88);
+    color: #edf3ee;
+  }
+
+  input {
+    border-color: #4a554c;
+    background: #202721;
+    color: #edf3ee;
+  }
+
+  .icon-button {
+    border-color: #4a554c;
+    background: #2c352e;
+    color: #edf3ee;
+  }
+
+  .privacy {
+    border-top-color: #39423b;
+  }
+}

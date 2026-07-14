@@ -75,6 +75,9 @@ final class ScriptedOpenRouter: OpenRouterStreaming, @unchecked Sendable {
 
 @MainActor
 final class StubActionService: MacActionServicing {
+    private let toolResultMessage: String
+    private let activity: String
+
     let toolDefinitions = [
         OpenRouterToolDefinition(
             function: OpenRouterFunctionDefinition(
@@ -90,6 +93,14 @@ final class StubActionService: MacActionServicing {
 
     private(set) var executionCount = 0
 
+    init(
+        toolResultMessage: String = "Copied test text.",
+        activity: String = "Copied test text"
+    ) {
+        self.toolResultMessage = toolResultMessage
+        self.activity = activity
+    }
+
     func prepare(toolCall: OpenRouterToolCall) throws -> ActionProposal {
         ActionProposal(
             toolCallID: toolCall.id,
@@ -104,8 +115,8 @@ final class StubActionService: MacActionServicing {
     func execute(_ proposal: ActionProposal) async throws -> MacActionResult {
         executionCount += 1
         return MacActionResult(
-            toolMessage: "Copied test text.",
-            activityDescription: "Copied test text"
+            toolMessage: toolResultMessage,
+            activityDescription: activity
         )
     }
 }
@@ -134,5 +145,28 @@ final class StubAPIKeyStore: APIKeyStoring, @unchecked Sendable {
 
     func deleteAPIKey() throws {
         lock.withLock { key = nil }
+    }
+}
+
+actor StubBrowserSearch: BrowserSearching {
+    private let result: BrowserSearchResult
+    private let error: BrowserBridgeError?
+    private var recordedQueries: [String] = []
+
+    init(result: BrowserSearchResult, error: BrowserBridgeError? = nil) {
+        self.result = result
+        self.error = error
+    }
+
+    func search(query: String) async throws -> BrowserSearchResult {
+        recordedQueries.append(query)
+        if let error {
+            throw error
+        }
+        return result
+    }
+
+    func queries() -> [String] {
+        recordedQueries
     }
 }

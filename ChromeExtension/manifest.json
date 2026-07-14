@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Orchard Browser Search",
+  "version": "1.0.0",
+  "description": "Lets Orchard search the web in a visible browser tab after local pairing.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://www.google.com/*",
+    "https://consent.google.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:38476 ws://127.0.0.1:38476"
+  },
+  "incognito": "not_allowed",
+  "action": {
+    "default_title": "Orchard Browser Search",
+    "default_popup": "popup.html"
+  }
+}
