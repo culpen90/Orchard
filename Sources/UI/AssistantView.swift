@@ -204,7 +204,7 @@ private struct WelcomeView: View {
     private let suggestions = [
         "Give me a quick plan for today",
         "Open Safari",
-        "Search the web for local weather"
+        "Use Chrome to check today's weather"
     ]
 
     var body: some View {

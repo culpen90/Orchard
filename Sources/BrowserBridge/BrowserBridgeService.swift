@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import Network
 
-final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
+final class BrowserBridgeService: BrowserControlling, @unchecked Sendable {
     static let shared = BrowserBridgeService()
     static let defaultPort: UInt16 = 38_476
 
@@ -11,9 +11,10 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "com.culpen90.Orchard.browser-bridge")
     private let lock = NSLock()
-    private let pendingSearches = BrowserBridgePendingSearches()
+    private let pendingCommands = BrowserBridgePendingCommands()
     private var listener: NWListener?
     private var activeConnection: NWConnection?
+    private var activeConnectionGeneration: UInt64 = 0
     private var pendingHandshakes: [ObjectIdentifier: BrowserBridgePendingHandshake] = [:]
     private var listenerReady = false
     private var listenerFailure: String?
@@ -36,6 +37,10 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
         lock.withLock { activeConnection != nil }
     }
 
+    var connectionGeneration: UInt64 {
+        lock.withLock { activeConnectionGeneration }
+    }
+
     var isListenerReady: Bool {
         lock.withLock { listenerReady }
     }
@@ -44,37 +49,57 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
         lock.withLock { listenerFailure }
     }
 
-    func search(query: String) async throws -> BrowserSearchResult {
-        let cleanedQuery = BrowserSearchResult.cleaned(query, maximumLength: 1_000)
-        guard !cleanedQuery.isEmpty else {
-            throw BrowserBridgeError.invalidMessage
-        }
+    func perform(_ command: BrowserCommand) async throws -> BrowserCommandResult {
+        try await perform(
+            command,
+            expectedConnectionGeneration: connectionGeneration
+        )
+    }
 
-        let status = lock.withLock { (listenerReady, listenerFailure, activeConnection != nil) }
+    func perform(
+        _ command: BrowserCommand,
+        expectedConnectionGeneration: UInt64
+    ) async throws -> BrowserCommandResult {
+        let command = try command.validatedForSending()
+        let status = lock.withLock {
+            (
+                listenerReady,
+                listenerFailure,
+                activeConnection,
+                activeConnectionGeneration
+            )
+        }
         if status.1 != nil || !status.0 {
             throw BrowserBridgeError.listenerUnavailable
         }
-        guard status.2 else {
+        guard status.3 == expectedConnectionGeneration else {
+            throw BrowserBridgeError.staleConnection
+        }
+        guard let connection = status.2 else {
             throw BrowserBridgeError.extensionNotConnected
         }
 
-        let request = BrowserBridgeSearchRequest(id: UUID(), query: cleanedQuery)
-        let result = try await pendingSearches.perform(
+        let request = BrowserBridgeCommandRequest(id: UUID(), command: command)
+        let result = try await pendingCommands.perform(
             request: request,
-            send: { [weak self] message in
-                guard let self else {
+            connectionGeneration: status.3,
+            send: { [weak self, weak connection] message in
+                guard let self, let connection else {
                     throw BrowserBridgeError.cancelled
                 }
-                try await self.send(message)
+                try await self.send(message, over: connection)
             },
-            cancel: { [weak self] id in
-                guard let self else {
+            cancel: { [weak self, weak connection] id in
+                guard let self, let connection else {
                     return
                 }
-                try? await self.send(BrowserBridgeSearchCancellation(id: id))
+                try? await self.send(
+                    BrowserBridgeCommandCancellation(id: id),
+                    over: connection
+                )
             }
         )
-        return try result.validated()
+        return try result.validated(for: command.action)
     }
 
     func waitUntilListening(timeout: Duration = .seconds(3)) async throws {
@@ -138,12 +163,12 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
                 listenerReady = false
                 listenerFailure = error.localizedDescription
             }
-            Task { await pendingSearches.failAll(with: .listenerUnavailable) }
+            Task { await pendingCommands.failAll(with: .outcomeUnknown) }
         case .cancelled:
             lock.withLock {
                 listenerReady = false
             }
-            Task { await pendingSearches.failAll(with: .listenerUnavailable) }
+            Task { await pendingCommands.failAll(with: .outcomeUnknown) }
         default:
             break
         }
@@ -197,7 +222,7 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
     private func process(data: Data, from connection: NWConnection) async {
         guard
             let message = try? JSONDecoder().decode(BrowserBridgeIncomingMessage.self, from: data),
-            message.version == 1
+            message.version == 2
         else {
             connection.cancel()
             return
@@ -212,6 +237,18 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
                     connection,
                     code: "invalid_nonce",
                     message: "Invalid authentication nonce."
+                )
+                return
+            }
+
+            let requiredCapabilities = Set(BrowserCommandAction.allCases.map(\.rawValue))
+            guard let capabilities = message.capabilities,
+                  requiredCapabilities.isSubset(of: Set(capabilities))
+            else {
+                await rejectHandshake(
+                    connection,
+                    code: "incompatible_extension",
+                    message: "This extension does not support Orchard browser control protocol v2. Reload the bundled extension."
                 )
                 return
             }
@@ -274,12 +311,22 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
                 return
             }
 
-            let previous = lock.withLock { () -> NWConnection? in
+            let replacement = lock.withLock { () -> (NWConnection?, UInt64?) in
                 let oldConnection = activeConnection
+                let oldGeneration = oldConnection == nil
+                    ? nil
+                    : activeConnectionGeneration
+                activeConnectionGeneration &+= 1
                 activeConnection = connection
-                return oldConnection
+                return (oldConnection, oldGeneration)
             }
-            if let previous, previous !== connection {
+            if let oldGeneration = replacement.1 {
+                await pendingCommands.invalidate(
+                    through: oldGeneration,
+                    with: .connectionChanged
+                )
+            }
+            if let previous = replacement.0, previous !== connection {
                 previous.cancel()
             }
             try? await send(BrowserBridgeHandshakeResponse(ok: true), over: connection)
@@ -291,16 +338,16 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
             }
             try? await send(BrowserBridgeControlMessage(type: "pong"), over: connection)
 
-        case "search.response":
+        case "browser.response":
             guard isActive(connection), let id = message.id, let ok = message.ok else {
                 connection.cancel()
                 return
             }
             if ok, let result = message.result {
-                await pendingSearches.complete(id: id, result: result)
+                await pendingCommands.complete(id: id, result: result)
             } else if let remoteError = message.error {
                 let sanitizedError = Self.sanitizedRemoteError(remoteError)
-                await pendingSearches.fail(
+                await pendingCommands.fail(
                     id: id,
                     with: .remote(
                         code: sanitizedError.code,
@@ -308,7 +355,7 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
                     )
                 )
             } else {
-                await pendingSearches.fail(id: id, with: .invalidResponse)
+                await pendingCommands.fail(id: id, with: .outcomeUnknown)
             }
 
         default:
@@ -376,12 +423,7 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
             return
         }
 
-        let bridgeError: BrowserBridgeError = if let error {
-            .connectionFailed(error)
-        } else {
-            .extensionNotConnected
-        }
-        Task { await pendingSearches.failAll(with: bridgeError) }
+        Task { await pendingCommands.failAll(with: .outcomeUnknown) }
     }
 
     private func send<Message: Encodable>(_ message: Message) async throws {
@@ -450,7 +492,7 @@ final class BrowserBridgeService: BrowserSearching, @unchecked Sendable {
         serverNonce: String,
         token: String
     ) -> String {
-        let payload = "orchard-browser-bridge:v1:\(role):\(clientNonce):\(serverNonce)"
+        let payload = "orchard-browser-bridge:v2:\(role):\(clientNonce):\(serverNonce)"
         let authenticationCode = HMAC<SHA256>.authenticationCode(
             for: Data(payload.utf8),
             using: SymmetricKey(data: Data(token.utf8))
@@ -533,17 +575,28 @@ private struct BrowserBridgePendingHandshake: Equatable {
     let serverNonce: String
 }
 
-private actor BrowserBridgePendingSearches {
-    typealias Continuation = CheckedContinuation<BrowserSearchResult, any Error>
+private actor BrowserBridgePendingCommands {
+    typealias Continuation = CheckedContinuation<BrowserCommandResult, any Error>
 
-    private var pending: [UUID: Continuation] = [:]
+    private struct Entry {
+        let connectionGeneration: UInt64
+        let continuation: Continuation
+    }
+
+    private var pending: [UUID: Entry] = [:]
+    private var highestInvalidatedGeneration: UInt64?
 
     func perform(
-        request: BrowserBridgeSearchRequest,
-        send: @escaping @Sendable (BrowserBridgeSearchRequest) async throws -> Void,
+        request: BrowserBridgeCommandRequest,
+        connectionGeneration: UInt64,
+        send: @escaping @Sendable (BrowserBridgeCommandRequest) async throws -> Void,
         cancel: @escaping @Sendable (UUID) async -> Void
-    ) async throws -> BrowserSearchResult {
-        try await withTaskCancellationHandler {
+    ) async throws -> BrowserCommandResult {
+        if let highestInvalidatedGeneration,
+           connectionGeneration <= highestInvalidatedGeneration {
+            throw BrowserBridgeError.connectionChanged
+        }
+        return try await withTaskCancellationHandler {
             do {
                 try Task.checkCancellation()
             } catch {
@@ -551,7 +604,10 @@ private actor BrowserBridgePendingSearches {
             }
 
             return try await withCheckedThrowingContinuation { continuation in
-                pending[request.id] = continuation
+                pending[request.id] = Entry(
+                    connectionGeneration: connectionGeneration,
+                    continuation: continuation
+                )
                 if Task.isCancelled {
                     fail(id: request.id, with: .cancelled)
                     return
@@ -560,13 +616,8 @@ private actor BrowserBridgePendingSearches {
                 Task {
                     do {
                         try await send(request)
-                    } catch let error as BrowserBridgeError {
-                        fail(id: request.id, with: error)
                     } catch {
-                        fail(
-                            id: request.id,
-                            with: .connectionFailed(error.localizedDescription)
-                        )
+                        fail(id: request.id, with: .outcomeUnknown)
                     }
                 }
 
@@ -575,38 +626,59 @@ private actor BrowserBridgePendingSearches {
                     guard !Task.isCancelled else {
                         return
                     }
-                    if fail(id: request.id, with: .timedOut) {
+                    if fail(id: request.id, with: .outcomeUnknown) {
                         await cancel(request.id)
                     }
                 }
             }
         } onCancel: {
             Task {
-                if await self.fail(id: request.id, with: .cancelled) {
+                if await self.fail(id: request.id, with: .outcomeUnknown) {
                     await cancel(request.id)
                 }
             }
         }
     }
 
-    func complete(id: UUID, result: BrowserSearchResult) {
-        pending.removeValue(forKey: id)?.resume(returning: result)
+    func complete(id: UUID, result: BrowserCommandResult) {
+        pending.removeValue(forKey: id)?.continuation.resume(returning: result)
     }
 
     @discardableResult
     func fail(id: UUID, with error: BrowserBridgeError) -> Bool {
-        guard let continuation = pending.removeValue(forKey: id) else {
+        guard let entry = pending.removeValue(forKey: id) else {
             return false
         }
-        continuation.resume(throwing: error)
+        entry.continuation.resume(throwing: error)
         return true
     }
 
+    func invalidate(
+        through connectionGeneration: UInt64,
+        with error: BrowserBridgeError
+    ) {
+        if let highestInvalidatedGeneration {
+            self.highestInvalidatedGeneration = max(
+                highestInvalidatedGeneration,
+                connectionGeneration
+            )
+        } else {
+            highestInvalidatedGeneration = connectionGeneration
+        }
+
+        let invalidatedIDs = pending.compactMap { id, entry in
+            entry.connectionGeneration <= connectionGeneration ? id : nil
+        }
+        for id in invalidatedIDs {
+            pending.removeValue(forKey: id)?.continuation.resume(throwing: error)
+        }
+    }
+
     func failAll(with error: BrowserBridgeError) {
-        let continuations = pending.values
+        let entries = pending.values
         pending.removeAll()
-        for continuation in continuations {
-            continuation.resume(throwing: error)
+        for entry in entries {
+            entry.continuation.resume(throwing: error)
         }
     }
 }

@@ -38,10 +38,10 @@ final class SSEParserTests: XCTestCase {
 
     func testReassemblesFragmentedToolCallArguments() throws {
         let first = try OpenRouterStreamDecoder.decode(payload: """
-        {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search_web","arguments":"{\\\"query\\\":"}}]}}]}
+        {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"browser_navigate","arguments":"{\\\"url\\\":"}}]}}]}
         """)
         let second = try OpenRouterStreamDecoder.decode(payload: """
-        {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\\"orchards\\\"}"}}]}}]}
+        {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\\"https://example.com\\\"}"}}]}}]}
         """)
 
         var accumulator = OpenRouterToolCallAccumulator()
@@ -53,8 +53,8 @@ final class SSEParserTests: XCTestCase {
 
         let calls = try accumulator.completedCalls()
         XCTAssertEqual(calls.count, 1)
-        XCTAssertEqual(calls[0].function.name, "search_web")
-        XCTAssertEqual(calls[0].function.arguments, "{\"query\":\"orchards\"}")
+        XCTAssertEqual(calls[0].function.name, "browser_navigate")
+        XCTAssertEqual(calls[0].function.arguments, "{\"url\":\"https://example.com\"}")
     }
 
     func testPreservesReasoningDetailsAndFinishReason() throws {

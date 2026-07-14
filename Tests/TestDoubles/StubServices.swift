@@ -77,6 +77,7 @@ final class ScriptedOpenRouter: OpenRouterStreaming, @unchecked Sendable {
 final class StubActionService: MacActionServicing {
     private let toolResultMessage: String
     private let activity: String
+    private let executionError: (any Error)?
 
     let toolDefinitions = [
         OpenRouterToolDefinition(
@@ -95,10 +96,12 @@ final class StubActionService: MacActionServicing {
 
     init(
         toolResultMessage: String = "Copied test text.",
-        activity: String = "Copied test text"
+        activity: String = "Copied test text",
+        executionError: (any Error)? = nil
     ) {
         self.toolResultMessage = toolResultMessage
         self.activity = activity
+        self.executionError = executionError
     }
 
     func prepare(toolCall: OpenRouterToolCall) throws -> ActionProposal {
@@ -114,6 +117,9 @@ final class StubActionService: MacActionServicing {
 
     func execute(_ proposal: ActionProposal) async throws -> MacActionResult {
         executionCount += 1
+        if let executionError {
+            throw executionError
+        }
         return MacActionResult(
             toolMessage: toolResultMessage,
             activityDescription: activity
@@ -148,25 +154,36 @@ final class StubAPIKeyStore: APIKeyStoring, @unchecked Sendable {
     }
 }
 
-actor StubBrowserSearch: BrowserSearching {
-    private let result: BrowserSearchResult
+actor StubBrowserControl: BrowserControlling {
+    private var results: [BrowserCommandResult]
     private let error: BrowserBridgeError?
-    private var recordedQueries: [String] = []
+    private var recordedCommands: [BrowserCommand] = []
 
-    init(result: BrowserSearchResult, error: BrowserBridgeError? = nil) {
-        self.result = result
+    init(result: BrowserCommandResult, error: BrowserBridgeError? = nil) {
+        results = [result]
         self.error = error
     }
 
-    func search(query: String) async throws -> BrowserSearchResult {
-        recordedQueries.append(query)
+    init(results: [BrowserCommandResult], error: BrowserBridgeError? = nil) {
+        self.results = results
+        self.error = error
+    }
+
+    func perform(_ command: BrowserCommand) async throws -> BrowserCommandResult {
+        recordedCommands.append(command)
         if let error {
             throw error
+        }
+        guard let result = results.first else {
+            throw BrowserBridgeError.invalidResponse
+        }
+        if results.count > 1 {
+            results.removeFirst()
         }
         return result
     }
 
-    func queries() -> [String] {
-        recordedQueries
+    func commands() -> [BrowserCommand] {
+        recordedCommands
     }
 }

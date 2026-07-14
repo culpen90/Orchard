@@ -1,6 +1,6 @@
 {
-  "name": "orchard-browser-search-extension",
-  "version": "1.0.0",
+  "name": "orchard-browser-control-extension",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "test": "node --test tests/*.test.js"

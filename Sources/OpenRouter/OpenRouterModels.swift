@@ -177,9 +177,53 @@ struct OpenRouterToolParameters: Encodable, Equatable, Sendable {
 struct OpenRouterToolProperty: Encodable, Equatable, Sendable {
     let type: String
     let description: String
+    let allowedValues: [String]?
+    let minimum: Int?
+    let maximum: Int?
 
-    static func string(_ description: String) -> OpenRouterToolProperty {
-        OpenRouterToolProperty(type: "string", description: description)
+    static func string(
+        _ description: String,
+        allowedValues: [String]? = nil
+    ) -> OpenRouterToolProperty {
+        OpenRouterToolProperty(
+            type: "string",
+            description: description,
+            allowedValues: allowedValues,
+            minimum: nil,
+            maximum: nil
+        )
+    }
+
+    static func integer(
+        _ description: String,
+        minimum: Int? = nil,
+        maximum: Int? = nil
+    ) -> OpenRouterToolProperty {
+        OpenRouterToolProperty(
+            type: "integer",
+            description: description,
+            allowedValues: nil,
+            minimum: minimum,
+            maximum: maximum
+        )
+    }
+
+    static func boolean(_ description: String) -> OpenRouterToolProperty {
+        OpenRouterToolProperty(
+            type: "boolean",
+            description: description,
+            allowedValues: nil,
+            minimum: nil,
+            maximum: nil
+        )
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case description
+        case allowedValues = "enum"
+        case minimum
+        case maximum
     }
 }
 
