@@ -46,6 +46,61 @@ final class MacActionServiceTests: XCTestCase {
         )
     }
 
+    func testPreparesSafariForConfirmation() throws {
+        let proposal = try service.prepare(
+            toolCall: call(
+                name: "open_application",
+                arguments: #"{"name":"Safari","bundle_id":"com.apple.Safari"}"#
+            )
+        )
+
+        guard case .openApplication(let url, let name) = proposal.kind else {
+            return XCTFail("Expected an open-application proposal")
+        }
+        XCTAssertEqual(proposal.title, "Open Safari?")
+        XCTAssertEqual(name, "Safari")
+        XCTAssertEqual(url.lastPathComponent, "Safari.app")
+    }
+
+    func testAllowsApplicationOutsideStandardApplicationsDirectories() throws {
+        let url = URL(
+            fileURLWithPath: "/Users/example/Projects/Build/Portable.app"
+        )
+
+        XCTAssertEqual(try service.validatedApplicationURL(url), url)
+    }
+
+    func testRejectsNonApplicationItems() {
+        let url = URL(fileURLWithPath: "/Users/example/Downloads/readme.txt")
+
+        XCTAssertThrowsError(try service.validatedApplicationURL(url)) { error in
+            guard let actionError = error as? MacActionError else {
+                return XCTFail("Expected a MacActionError")
+            }
+            guard case .invalidApplication = actionError else {
+                return XCTFail("Expected invalidApplication")
+            }
+        }
+    }
+
+    func testRejectsApplicationNameContainingAPath() {
+        XCTAssertThrowsError(
+            try service.prepare(
+                toolCall: call(
+                    name: "open_application",
+                    arguments: #"{"name":"../../tmp/Untrusted"}"#
+                )
+            )
+        ) { error in
+            guard let actionError = error as? MacActionError else {
+                return XCTFail("Expected a MacActionError")
+            }
+            guard case .invalidApplicationName = actionError else {
+                return XCTFail("Expected invalidApplicationName")
+            }
+        }
+    }
+
     func testBrowserSearchReturnsEvidenceForTheNextModelRound() async throws {
         let browserSearch = StubBrowserSearch(
             result: BrowserSearchResult(
