@@ -1,5 +1,4 @@
 import AppKit
-import Darwin
 import Foundation
 
 enum MacActionKind: Equatable, Sendable {
@@ -56,10 +55,10 @@ final class MacActionService: MacActionServicing {
         OpenRouterToolDefinition(
             function: OpenRouterFunctionDefinition(
                 name: "open_application",
-                description: "Open an installed macOS application when the user asks to launch or switch to it.",
+                description: "Open a macOS application that Launch Services can find, regardless of where it is installed.",
                 parameters: OpenRouterToolParameters(
                     properties: [
-                        "name": .string("The human-readable application name, such as Safari."),
+                        "name": .string("The human-readable application name, not a file path, such as Safari."),
                         "bundle_id": .string("The macOS bundle identifier when known, such as com.apple.Safari.")
                     ],
                     required: ["name"]
@@ -183,10 +182,7 @@ final class MacActionService: MacActionServicing {
         case .openApplication(let url, let name):
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
-            _ = try await NSWorkspace.shared.openApplication(
-                at: url,
-                configuration: configuration
-            )
+            try await openApplication(at: url, configuration: configuration)
             return MacActionResult(
                 toolMessage: "Opened the installed application \(name).",
                 activityDescription: "Opened \(name)"
@@ -218,6 +214,27 @@ final class MacActionService: MacActionServicing {
                 toolMessage: "Copied the requested text to the clipboard.",
                 activityDescription: "Copied to clipboard"
             )
+        }
+    }
+
+    private func openApplication(
+        at url: URL,
+        configuration: NSWorkspace.OpenConfiguration
+    ) async throws {
+        try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<Void, any Error>) in
+            NSWorkspace.shared.openApplication(
+                at: url,
+                configuration: configuration
+            ) { application, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if application != nil {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: MacActionError.couldNotOpen)
+                }
+            }
         }
     }
 
@@ -268,6 +285,10 @@ final class MacActionService: MacActionServicing {
     }
 
     private func resolveApplication(name: String, bundleID: String?) throws -> URL {
+        guard !name.contains("/") else {
+            throw MacActionError.invalidApplicationName
+        }
+
         let url: URL?
         if let bundleID {
             url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
@@ -280,18 +301,19 @@ final class MacActionService: MacActionServicing {
             throw MacActionError.applicationNotFound(name)
         }
 
+        return try validatedApplicationURL(url)
+    }
+
+    func validatedApplicationURL(_ url: URL) throws -> URL {
         let resolvedURL = url.resolvingSymlinksInPath().standardizedFileURL
-        let path = resolvedURL.path
-        var allowedPrefixes = [
-            "/Applications/",
-            "/System/Applications/",
-            "/System/Library/CoreServices/"
-        ]
-        if let userHomePath = realUserHomePath() {
-            allowedPrefixes.append(userHomePath + "/Applications/")
-        }
-        guard allowedPrefixes.contains(where: path.hasPrefix), path.hasSuffix(".app") else {
-            throw MacActionError.applicationNotAllowed
+        // Launch Services can return apps from user folders, developer build
+        // directories, external volumes, and Apple's sealed system Cryptexes.
+        // Restrict the item type instead of imposing an installation location.
+        guard
+            resolvedURL.isFileURL,
+            resolvedURL.pathExtension.localizedCaseInsensitiveCompare("app") == .orderedSame
+        else {
+            throw MacActionError.invalidApplication
         }
         return resolvedURL
     }
@@ -348,15 +370,6 @@ final class MacActionService: MacActionServicing {
         }
         return URL(fileURLWithPath: path, isDirectory: true)
     }
-
-    private func realUserHomePath() -> String? {
-        guard let passwordEntry = getpwuid(getuid()),
-              let homePointer = passwordEntry.pointee.pw_dir
-        else {
-            return nil
-        }
-        return String(cString: homePointer)
-    }
 }
 
 enum MacActionError: LocalizedError, Sendable {
@@ -366,7 +379,8 @@ enum MacActionError: LocalizedError, Sendable {
     case invalidURL
     case unsupportedTool(String)
     case applicationNotFound(String)
-    case applicationNotAllowed
+    case invalidApplicationName
+    case invalidApplication
     case couldNotOpen
     case couldNotCopy
 
@@ -383,9 +397,11 @@ enum MacActionError: LocalizedError, Sendable {
         case .unsupportedTool(let name):
             "Orchard does not allow the \(name) action."
         case .applicationNotFound(let name):
-            "The application \(name) is not installed."
-        case .applicationNotAllowed:
-            "Orchard only opens installed applications from standard Applications folders."
+            "Orchard could not find an application named \(name)."
+        case .invalidApplicationName:
+            "Provide an application name, not a file path."
+        case .invalidApplication:
+            "The resolved item is not a macOS application."
         case .couldNotOpen:
             "macOS could not open that item."
         case .couldNotCopy:
